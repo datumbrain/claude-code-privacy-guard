@@ -44,7 +44,7 @@ export class PrivacyScanner {
     detectWithRule(text, rule) {
         const findings = [];
         const pattern = typeof rule.pattern === 'string'
-            ? new RegExp(rule.pattern, 'g')
+            ? new RegExp(rule.pattern, 'gm')
             : new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g');
         let match;
         while ((match = pattern.exec(text)) !== null) {
