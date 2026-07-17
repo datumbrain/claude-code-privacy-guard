@@ -1,6 +1,6 @@
 {
   "name": "claude-privacy-guard",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Privacy guard plugin for Claude Code - prevents PII and secrets from leaking into AI prompts",
   "author": {
     "name": "Datum Brain"
