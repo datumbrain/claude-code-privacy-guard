@@ -59,7 +59,7 @@ npm test -- --runInBand
 echo "Creating git commit and tag..."
 git add -A
 git commit -m "release: v${new_version}"
-git tag "v${new_version}"
+git tag "${new_version}"
 
 read -r -p "Push commit and tags to origin? [y/N]: " confirm_push
 if [[ "$confirm_push" =~ ^[Yy]$ ]]; then
