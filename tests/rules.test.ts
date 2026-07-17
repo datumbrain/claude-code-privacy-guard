@@ -87,3 +87,23 @@ describe('openai-api-key rule', () => {
   });
 });
 
+describe('bearer-token rule', () => {
+  const bearerRule = BUILTIN_RULES.find((rule) => rule.id === 'bearer-token') as DetectionRule;
+  const scanner = new PrivacyScanner([bearerRule]);
+
+  test('matches a realistic bearer token', () => {
+    const result = scanner.scan('Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+    expect(result.findings.some((finding) => finding.ruleId === 'bearer-token')).toBe(true);
+  });
+
+  test('does not match prose asking about how Bearer tokens work', () => {
+    const result = scanner.scan('how do Bearer tokens work?');
+    expect(result.findings).toHaveLength(0);
+  });
+
+  test('does not match short placeholder values after Bearer', () => {
+    const result = scanner.scan('Bearer abc123');
+    expect(result.findings).toHaveLength(0);
+  });
+});
+

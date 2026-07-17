@@ -50,7 +50,7 @@ export const BUILTIN_RULES: DetectionRule[] = [
     description: 'Detects Bearer authentication tokens',
     severity: 'high',
     category: 'auth-token',
-    pattern: /\bBearer\s+[A-Za-z0-9\-._~+/]+=*/gi,
+    pattern: /\bBearer\s+[A-Za-z0-9\-._~+/]{20,}=*/gi,
     examples: ['Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'],
     redactionStrategy: 'token-replace',
     enabled: true,
