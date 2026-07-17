@@ -60,3 +60,30 @@ describe('rule coverage', () => {
     expect(found).toBe(true);
   });
 });
+
+describe('openai-api-key rule', () => {
+  const openaiRule = BUILTIN_RULES.find((rule) => rule.id === 'openai-api-key') as DetectionRule;
+  const scanner = new PrivacyScanner([openaiRule]);
+
+  test.each([
+    'sk-proj-1234567890abcdefghij',
+    'sk-1234567890abcdefghij',
+    'sk-proj-Ab12_cd34-Ef56Gh78Ij90Kl12Mn34',
+  ])('matches realistic key: %s', (key: string) => {
+    const result = scanner.scan(`my key is ${key}`);
+    expect(result.findings.some((finding) => finding.ruleId === 'openai-api-key')).toBe(true);
+  });
+
+  test('does not match ordinary hyphenated words', () => {
+    const result = scanner.scan('the task-managers reviewed risk-assessment-review docs at desk-workstations');
+    expect(result.findings).toHaveLength(0);
+  });
+
+  test('does not match keys owned by other detectors', () => {
+    const result = scanner.scan(
+      'sk-ant-api03-abcdefghijklmnopqrstuvwxyz1234567890 sk-or-v1-abcdefghijklmnopqrstuvwxyz1234567890'
+    );
+    expect(result.findings).toHaveLength(0);
+  });
+});
+
