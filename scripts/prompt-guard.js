@@ -11,6 +11,8 @@ import { PrivacyScanner } from '../dist/scanner/engine.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../dist/scanner/detectors.js';
+import { ConfigLoader } from '../dist/config/loader.js';
+import * as path from 'path';
 
 // Read the user's prompt from stdin
 let promptText = '';
@@ -22,10 +24,28 @@ try {
   process.exit(1);
 }
 
+// Load user configuration (.privacy-guard.json, searched upward from cwd)
+const configPath = ConfigLoader.findConfig();
+const config = new ConfigLoader(configPath ?? undefined).getConfig();
+
+if (config.enabled === false) {
+  process.exit(0);
+}
+
 // Initialize scanner with built-in + external JSON regex rules
-const externalRulesPath = fileURLToPath(new URL('../data/regex_list_1.json', import.meta.url));
-const externalRules = loadExternalRulesFromJson(externalRulesPath, { codingOnly: true });
-const scanner = new PrivacyScanner([...BUILTIN_RULES, ...externalRules]);
+let externalRulesPath = fileURLToPath(new URL('../data/regex_list_1.json', import.meta.url));
+if (config.externalRulesJsonPath) {
+  const baseDir = configPath ? path.dirname(configPath) : process.cwd();
+  externalRulesPath = path.resolve(baseDir, config.externalRulesJsonPath);
+}
+const codingOnly = (config.externalRulesMode ?? 'coding-only') === 'coding-only';
+const externalRules = loadExternalRulesFromJson(externalRulesPath, { codingOnly });
+
+// Honor disabledRules from config for both built-in and external rules
+const disabledRules = new Set(config.disabledRules);
+const scanner = new PrivacyScanner(
+  [...BUILTIN_RULES, ...externalRules].filter((rule) => !disabledRules.has(rule.id))
+);
 
 // Scan the prompt
 const result = scanner.scan(promptText);
