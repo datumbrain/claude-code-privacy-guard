@@ -32,6 +32,16 @@ case "$bump_type" in
 esac
 
 new_version="$(npm pkg get version | tr -d '"')"
+
+echo "Syncing .claude-plugin/plugin.json version..."
+node -e '
+  const fs = require("fs");
+  const path = ".claude-plugin/plugin.json";
+  const plugin = JSON.parse(fs.readFileSync(path, "utf8"));
+  plugin.version = process.argv[1];
+  fs.writeFileSync(path, JSON.stringify(plugin, null, 2) + "\n");
+' "$new_version"
+
 echo "Prepared release version: ${new_version}"
 read -r -p "Continue with build, test, commit, and tag? [y/N]: " confirm_release
 
