@@ -156,7 +156,7 @@ export const BUILTIN_RULES = [
         description: 'Detects likely hardcoded keys/tokens in code assignments',
         severity: 'high',
         category: 'secret',
-        pattern: /\b(?:api[_-]?key|secret|token|access[_-]?token|auth[_-]?token)\b\s*[:=]\s*['"`][A-Za-z0-9_\-\/+=]{16,}['"`]/gi,
+        pattern: /\b(?:api[_-]?key|secret|token|access[_-]?token|auth[_-]?token)\b\s*[:=]\s*['"`][A-Za-z0-9_\-/+=]{16,}['"`]/gi,
         examples: ['api_key = "abc1234567890secretvalue"'],
         redactionStrategy: 'token-replace',
         enabled: true,
