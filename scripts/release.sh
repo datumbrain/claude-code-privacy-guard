@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+previous_tag="$(git describe --tags --abbrev=0 2>/dev/null || echo "")"
 current_version="$(npm pkg get version | tr -d '"')"
 
 echo "Current version: ${current_version}"
@@ -55,6 +56,31 @@ npm run build
 
 echo "Running tests..."
 npm test -- --runInBand
+
+echo "Updating CHANGELOG.md..."
+log_range="HEAD"
+if [[ -n "${previous_tag}" ]]; then
+  log_range="${previous_tag}..HEAD"
+fi
+changelog_entries="$(git log "${log_range}" --no-merges --pretty=format:'- %s' -- . ':!CHANGELOG.md')"
+if [[ -z "${changelog_entries}" ]]; then
+  changelog_entries="- No changes recorded"
+fi
+release_date="$(date +%Y-%m-%d)"
+if [[ ! -f CHANGELOG.md ]]; then
+  echo "# Changelog" > CHANGELOG.md
+fi
+existing_entries="$(tail -n +2 CHANGELOG.md)"
+{
+  echo "# Changelog"
+  echo ""
+  echo "## v${new_version} - ${release_date}"
+  echo ""
+  echo "${changelog_entries}"
+  echo ""
+  echo "${existing_entries}"
+} > CHANGELOG.md.tmp
+mv CHANGELOG.md.tmp CHANGELOG.md
 
 echo "Creating git commit and tag..."
 git add -A
