@@ -1,0 +1,47 @@
+name: False positive report
+description: A prompt was blocked but didn't actually contain a secret or PII
+labels: ["bug", "false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        This is the most common report type for this kind of tool - thanks
+        for taking the time. Please don't paste the real value that
+        triggered the match; a redacted/synthetic example that reproduces
+        the same shape is enough.
+  - type: textarea
+    id: matched-value
+    attributes:
+      label: What value triggered the match?
+      description: >
+        Redact it, but keep the shape/pattern (e.g. an order ID format like
+        "ORD-2024-00019234567" instead of the real order ID).
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Rule name / title
+      description: From the block message, e.g. "OpenAI API Key" or "Credit Card Number".
+    validations:
+      required: false
+  - type: textarea
+    id: why-not-sensitive
+    attributes:
+      label: Why isn't this sensitive?
+      description: e.g. "this is a public order ID format", "this is a timestamp, not a card number".
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: .privacy-guard.json (if you have one)
+      render: json
+    validations:
+      required: false

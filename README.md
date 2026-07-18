@@ -82,6 +82,35 @@ Please remove or anonymize sensitive data before proceeding.
 ```
 
 
+## Configuration
+
+Create a `.privacy-guard.json` file (searched upward from your current
+working directory, so a repo-root or home-directory config both work) to
+override the defaults. See `.privacy-guard.example.json` for a starter
+file.
+
+| Option | Type | Default | Status |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `true` | ✅ Implemented. Set to `false` to disable the plugin entirely without uninstalling it. |
+| `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see the built-in `id` fields in `src/scanner/detectors.ts` or the `name` fields in `data/regex_list_1.json` for external rules. |
+| `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. |
+| `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
+| `strictMode` | `boolean` | `false` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
+| `allowedDomains` | `string[]` | `[]` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
+| `redactionStyle` | `"placeholder" \| "mask" \| "remove"` | `"placeholder"` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
+| `autoMaskOnHighRisk` | `boolean` | `true` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
+
+Example:
+
+```json
+{
+  "enabled": true,
+  "disabledRules": [],
+  "externalRulesJsonPath": "./data/regex_list_1.json",
+  "externalRulesMode": "coding-only"
+}
+```
+
 ## Development
 
 ```bash
@@ -103,21 +132,9 @@ Release:
 ```bash
 make release
 ```
-This runs an interactive flow that asks for version bump, confirms release actions, then runs build/test, creates commit+tag, and optionally pushes/publishes.
+This runs an interactive flow that asks for version bump, confirms release actions, updates `CHANGELOG.md`, runs build/test, creates commit+tag, and optionally pushes/publishes.
 
-External regex dataset:
-- Converted rules are stored at `data/regex_list_1.json`
-- By default, external rules are loaded in `coding-only` mode (focus on keys/tokens/secrets/password/private key patterns)
-- Set `.privacy-guard.json` to control behavior:
-
-```json
-{
-  "externalRulesJsonPath": "./data/regex_list_1.json",
-  "externalRulesMode": "coding-only"
-}
-```
-
-See [docs/](./docs/) for detailed architecture and integration guides.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the `dist/` rebuild requirement, and [docs/](./docs/) for detailed architecture and integration guides.
 
 ## Privacy & Security
 
@@ -143,7 +160,7 @@ The log only contains execution metadata (working directory, Node version, exit 
 
 ## Contributing
 
-Contributions welcome! Please feel free to submit a Pull Request.
+Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for dev setup, how to add a detection rule, and the release process.
 
 ## License
 
