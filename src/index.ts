@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Claude Privacy Guard MCP Server
+ * Claude Code Privacy Guard MCP Server
  *
  * Privacy guard plugin for Claude Code that prevents PII and secrets
  * from leaking into AI prompts.
@@ -31,7 +31,7 @@ class PrivacyGuardServer {
   constructor() {
     this.server = new Server(
       {
-        name: 'claude-privacy-guard',
+        name: 'claude-code-privacy-guard',
         version: '0.1.0',
       },
       {
@@ -155,7 +155,7 @@ class PrivacyGuardServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Claude Privacy Guard MCP server running on stdio');
+    console.error('Claude Code Privacy Guard MCP server running on stdio');
   }
 }
 
