@@ -69,19 +69,10 @@ if (result.findings.length > 0) {
 
   console.log(JSON.stringify(response, null, 2));
 
-  // Also log to stderr for user visibility
-  console.error('\n⚠️  Privacy Guard: Prompt blocked due to sensitive data');
-  console.error(`   Found: ${result.findings.length} issue(s)`);
-  console.error(`   Risk Score: ${result.riskScore}/100`);
-  if ((result.summary.secret || 0) > 0) {
-    console.error(`   - ${result.summary.secret} secret(s)`);
-  }
-  if (result.summary.pii > 0) {
-    console.error(`   - ${result.summary.pii} PII item(s)`);
-  }
-  console.error('');
-
-  process.exit(1); // Exit with non-zero to block the prompt
+  // Per the UserPromptSubmit hook protocol, a JSON "decision": "block" is
+  // only honored on exit 0. A non-zero exit here would be treated as a
+  // non-blocking error and the prompt would go through anyway.
+  process.exit(0);
 }
 
 // No sensitive data, allow the prompt
