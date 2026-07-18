@@ -50,11 +50,18 @@ const scanner = new PrivacyScanner(
 // Scan the prompt
 const result = scanner.scan(promptText);
 
+// Mask a matched secret/PII value down to a short, non-recoverable hint,
+// e.g. "sk-proj-abc123xyz1234567890" -> "sk-p…7890"
+function maskMatch(value) {
+  if (value.length <= 8) return '*'.repeat(value.length);
+  return `${value.slice(0, 4)}…${value.slice(-4)}`;
+}
+
 // If sensitive data found, block the prompt
 if (result.findings.length > 0) {
   // Build detailed findings list
   const findingsList = result.findings.map(f =>
-    `  - ${f.title}: ${f.match.substring(0, 20)}...`
+    `  - ${f.title}: ${maskMatch(f.match)}`
   ).join('\n');
 
   // Return blocking decision as JSON
