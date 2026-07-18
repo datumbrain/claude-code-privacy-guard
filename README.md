@@ -58,6 +58,8 @@ Once restarted, the plugin will automatically scan all prompts before they reach
 4. **Blocks the prompt** if sensitive data is found
 5. Shows you exactly what was detected
 
+Blocking relies on the `UserPromptSubmit` hook JSON protocol: the hook prints `{"decision": "block", "reason": "..."}` to stdout and exits with code `0`. (Exit code `0` is required for the JSON decision to be honored - a non-zero exit is treated as a non-blocking hook error, and the prompt would go through anyway.)
+
 ## Example
 
 **Input:**
