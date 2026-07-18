@@ -46,9 +46,11 @@ Once restarted, the plugin will automatically scan all prompts before they reach
 
 ✅ **Personal Information (PII)**
 - Email addresses
-- Phone numbers
-- Social Security Numbers
-- Credit card numbers
+
+Phone numbers, Social Security Numbers, and credit card numbers are **not**
+currently detected by the default configuration - see
+[#7](https://github.com/datumbrain/claude-code-privacy-guard/issues/7) for
+tracking status.
 
 ## How It Works
 
