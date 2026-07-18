@@ -133,11 +133,13 @@ Claude Code's hook system doesn't support transforming prompts - only blocking o
 
 ## Debugging
 
-Check the debug log if you encounter issues:
+Debug logging is off by default. To enable it, set `PRIVACY_GUARD_DEBUG=1` in your environment before starting Claude Code, then check the log:
 
 ```bash
-cat /tmp/claude-code-privacy-guard.log
+cat "${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-privacy-guard/debug.log"
 ```
+
+The log only contains execution metadata (working directory, Node version, exit codes) - it never contains matched secret or PII values.
 
 ## Contributing
 
