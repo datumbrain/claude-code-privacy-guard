@@ -6,11 +6,11 @@
   },
   "plugins": [
     {
-      "name": "claude-privacy-guard",
+      "name": "claude-code-privacy-guard",
       "source": "./",
       "description": "🛡️ Prevent secrets and PII from being accidentally shared with Claude Code",
       "version": "0.1.2",
-      "repository": "https://github.com/datumbrain/claude-privacy-guard"
+      "repository": "https://github.com/datumbrain/claude-code-privacy-guard"
     }
   ]
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LOG_FILE="/tmp/claude-privacy-guard.log"
+LOG_FILE="/tmp/claude-code-privacy-guard.log"
 
 # Log debug info to file
 {

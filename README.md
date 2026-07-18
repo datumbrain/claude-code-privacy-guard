@@ -1,6 +1,6 @@
-# Claude Privacy Guard
+# Claude Code Privacy Guard
 
-<img src="./assets/claude-privacy-guard-logo.png" alt="Claude Privacy Guard Logo" align="right" height="80" />
+<img src="./assets/claude-code-privacy-guard-logo.png" alt="Claude Code Privacy Guard Logo" align="right" height="80" />
 
 > 🛡️ Prevent secrets and PII from being accidentally shared with Claude Code.
 
@@ -18,10 +18,10 @@ A privacy-first plugin for Claude Code that scans prompts for sensitive data and
 
 ```bash
 # Add the marketplace (if not already added)
-/plugin marketplace add datumbrain/claude-privacy-guard
+/plugin marketplace add datumbrain/claude-code-privacy-guard
 
 # Install the plugin
-/plugin install claude-privacy-guard
+/plugin install claude-code-privacy-guard
 ```
 
 > **⚠️ Important: Restart Required**
@@ -84,8 +84,8 @@ Please remove or anonymize sensitive data before proceeding.
 
 ```bash
 # Clone the repository
-git clone https://github.com/datumbrain/claude-privacy-guard.git
-cd claude-privacy-guard
+git clone https://github.com/datumbrain/claude-code-privacy-guard.git
+cd claude-code-privacy-guard
 
 # Install dependencies
 npm install
@@ -134,7 +134,7 @@ Claude Code's hook system doesn't support transforming prompts - only blocking o
 Check the debug log if you encounter issues:
 
 ```bash
-cat /tmp/claude-privacy-guard.log
+cat /tmp/claude-code-privacy-guard.log
 ```
 
 ## Contributing
