@@ -1,6 +1,6 @@
 {
   "name": "claude-code-privacy-guard",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "type": "module",
   "description": "Privacy guard plugin for Claude Code - prevents PII and secrets from leaking into AI prompts",
   "main": "dist/index.js",
