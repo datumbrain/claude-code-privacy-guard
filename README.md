@@ -170,13 +170,21 @@ Claude Code's hook system doesn't support transforming prompts - only blocking o
 
 ## Debugging
 
-Debug logging is off by default. To enable it, set `PRIVACY_GUARD_DEBUG=1` in your environment before starting Claude Code, then check the log:
+Debug logging is off by default. To enable it, set `PRIVACY_GUARD_DEBUG=1` in your environment before starting Claude Code, then check the log.
+
+On macOS/Linux:
 
 ```bash
 cat "${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-privacy-guard/debug.log"
 ```
 
-The log only contains execution metadata (working directory, Node version, exit codes) - it never contains matched secret or PII values.
+On Windows the log is written under `%LOCALAPPDATA%`:
+
+```powershell
+type "$env:LOCALAPPDATA\claude-code-privacy-guard\debug.log"
+```
+
+The log only contains execution metadata (timestamp, plugin root, working directory, Node version, exit path/code) - it never contains matched secret or PII values.
 
 ## Contributing
 
