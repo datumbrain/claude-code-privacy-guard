@@ -14,7 +14,7 @@ export const BUILTIN_RULES = [
         description: 'Detects email addresses that could be PII',
         severity: 'medium',
         category: 'pii',
-        pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+        pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
         examples: ['user@example.com', 'john.doe@company.co.uk'],
         redactionStrategy: 'semantic',
         enabled: true,
@@ -238,8 +238,12 @@ export function loadExternalRulesFromJson(jsonPath, options = {}) {
                 continue;
             }
             try {
-                // Ensure regex is compilable before adding.
-                void new RegExp(entry.regex, 'g');
+                // Ensure regex is compilable before adding, and reject any pattern that
+                // can match the empty string: it would spin the scanner's exec loop
+                // forever and, via the hook timeout, silently disable the guard.
+                if (new RegExp(entry.regex).test('')) {
+                    continue;
+                }
             }
             catch {
                 continue;

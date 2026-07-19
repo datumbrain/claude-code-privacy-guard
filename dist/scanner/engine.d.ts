@@ -15,6 +15,13 @@ export declare class PrivacyScanner {
      */
     private detectWithRule;
     /**
+     * Resolve overlapping findings so a single span is never redacted or counted
+     * more than once (e.g. a Bearer token that wraps an inner JWT). Findings are
+     * assumed sorted by startIndex. When two overlap, keep the wider span; on an
+     * equal span keep the higher severity; drop the other.
+     */
+    private mergeOverlappingFindings;
+    /**
      * Generate redacted text
      */
     private redactText;

@@ -29,17 +29,20 @@ export class PrivacyScanner {
     // Sort findings by position
     findings.sort((a, b) => a.startIndex - b.startIndex);
 
+    // Resolve overlaps so the same span is not redacted or counted twice
+    const mergedFindings = this.mergeOverlappingFindings(findings);
+
     // Generate redacted text
-    const redactedText = this.redactText(text, findings);
+    const redactedText = this.redactText(text, mergedFindings);
 
     // Calculate risk metrics
-    const summary = this.calculateSummary(findings);
-    const riskScore = this.calculateRiskScore(findings);
-    const hasCriticalRisk = findings.some(f => f.severity === 'critical');
-    const hasHighRisk = findings.some(f => f.severity === 'high' || f.severity === 'critical');
+    const summary = this.calculateSummary(mergedFindings);
+    const riskScore = this.calculateRiskScore(mergedFindings);
+    const hasCriticalRisk = mergedFindings.some(f => f.severity === 'critical');
+    const hasHighRisk = mergedFindings.some(f => f.severity === 'high' || f.severity === 'critical');
 
     return {
-      findings,
+      findings: mergedFindings,
       originalText: text,
       redactedText,
       riskScore,
@@ -61,6 +64,15 @@ export class PrivacyScanner {
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const matchText = match[0];
+
+      // A rule whose pattern can match the empty string would otherwise spin
+      // here forever: exec returns a zero-length match without advancing
+      // lastIndex. Nudge past it and skip the empty finding.
+      if (matchText.length === 0) {
+        pattern.lastIndex += 1;
+        continue;
+      }
+
       const redactedValue = this.generateRedaction(rule, matchText);
 
       findings.push({
@@ -76,6 +88,43 @@ export class PrivacyScanner {
     }
 
     return findings;
+  }
+
+  /**
+   * Resolve overlapping findings so a single span is never redacted or counted
+   * more than once (e.g. a Bearer token that wraps an inner JWT). Findings are
+   * assumed sorted by startIndex. When two overlap, keep the wider span; on an
+   * equal span keep the higher severity; drop the other.
+   */
+  private mergeOverlappingFindings(findings: Finding[]): Finding[] {
+    if (findings.length <= 1) return findings;
+
+    const severityRank: Record<Severity, number> = {
+      low: 0,
+      medium: 1,
+      high: 2,
+      critical: 3,
+    };
+
+    const kept: Finding[] = [];
+    for (const finding of findings) {
+      const prev = kept[kept.length - 1];
+      if (prev && finding.startIndex < prev.endIndex) {
+        const prevSpan = prev.endIndex - prev.startIndex;
+        const curSpan = finding.endIndex - finding.startIndex;
+        const preferCurrent =
+          curSpan > prevSpan ||
+          (curSpan === prevSpan &&
+            severityRank[finding.severity] > severityRank[prev.severity]);
+        if (preferCurrent) {
+          kept[kept.length - 1] = finding;
+        }
+        continue;
+      }
+      kept.push(finding);
+    }
+
+    return kept;
   }
 
   /**
