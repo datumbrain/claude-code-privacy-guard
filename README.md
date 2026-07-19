@@ -13,6 +13,7 @@ A privacy-first plugin for Claude Code that scans prompts for sensitive data and
 - ✅ **Works locally** - all scanning happens on your machine
 - ✅ **Zero configuration** - works out of the box
 - ✅ **Detailed reporting** - shows exactly what was detected
+- ✅ **Toggle individual rules** - via `disabledRules`, a `list_rules` MCP tool, or `npx claude-code-privacy-guard rules` for a local web UI
 
 ## Installation
 
@@ -74,13 +75,14 @@ My API key is sk-proj-abc123xyz and email is john@example.com
 🛡️ Privacy Guard blocked this prompt
 
 Found 2 sensitive item(s):
-  - API_KEY: sk-proj-abc123xyz...
-  - EMAIL: john@example.com...
+  - OpenAI API Key (openai-api-key): sk-p…3xyz
+  - Email Address (email-address): john….com
 
 Risk Score: 100/100
 Secrets: 1 | PII: 1
 
 Please remove or anonymize sensitive data before proceeding.
+To disable a rule, add its ID to "disabledRules" in .privacy-guard.json.
 ```
 
 
@@ -94,7 +96,7 @@ file.
 | Option | Type | Default | Status |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` | ✅ Implemented. Set to `false` to disable the plugin entirely without uninstalling it. |
-| `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see the built-in `id` fields in `src/scanner/detectors.ts` or the `name` fields in `data/regex_list_1.json` for external rules. |
+| `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see [Managing Rules](#managing-rules) below for how to discover and toggle IDs. |
 | `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. |
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
 | `strictMode` | `boolean` | `false` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
@@ -112,6 +114,22 @@ Example:
   "externalRulesMode": "coding-only"
 }
 ```
+
+## Managing Rules
+
+Every detection rule - built-in and external - has a stable `id` (e.g. `email-address`, `openai-api-key`, `external-slack-api-token`). Blocked prompts now show each finding's ID directly, so you always know what to put in `disabledRules`.
+
+To see and toggle every rule at once, run:
+
+```bash
+npx claude-code-privacy-guard rules
+```
+
+This starts a local-only web UI (bound to `127.0.0.1`, never exposed to your network) listing every rule with its ID, title, severity, and category. Toggling a rule saves automatically to `disabledRules`.
+
+It edits whichever `.privacy-guard.json` `ConfigLoader.findConfig` would resolve for the directory you run it from: an existing project-level config always wins, but if none exists anywhere up the directory tree it falls back to `~/.privacy-guard.json` - a systemwide default that applies to every project, since Privacy Guard is protecting you, not one repo. Run it from `~` (or any directory with no project-level config) to edit that global default; run it from inside a specific project to create or edit a project-level override instead. The page and console output both tell you which one you're editing.
+
+If you're working inside a Claude Code chat session instead, the MCP server also exposes a `list_rules` tool that returns the same id/title/severity/category/enabled data for each rule.
 
 ## Development
 
