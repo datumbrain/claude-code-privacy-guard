@@ -194,3 +194,213 @@ describe('email-address rule TLD class (character-class typo fix)', () => {
   );
 });
 
+
+function ruleScanner(id: string): PrivacyScanner {
+  const rule = BUILTIN_RULES.find((r) => r.id === id) as DetectionRule;
+  expect(rule).toBeDefined();
+  return new PrivacyScanner([rule]);
+}
+
+describe('slack-token rule', () => {
+  const scanner = ruleScanner('slack-token');
+
+  // Synthetic fixtures assembled at runtime (see detectors.ts note) so the full
+  // token never appears as one literal in source.
+  test.each([
+    ['xoxb', '000000000000', '000000000000', 'EXAMPLExxxxEXAMPLExxxx'].join('-'),
+    ['xoxp', '000000000000', '000000000000', '000000000000', 'EXAMPLExxxxEXAMPLExxxx'].join('-'),
+    ['xapp', '1', 'EXAMPLE00000', '000000000000', 'EXAMPLExxxxEXAMPLExxxx'].join('-'),
+  ])('matches a realistic Slack token: %s', (token: string) => {
+    const result = scanner.scan(`token=${token}`);
+    expect(result.findings.some((f) => f.ruleId === 'slack-token')).toBe(true);
+  });
+
+  test.each([
+    'how do slack tokens work?',
+    'reset your xoxb- token',
+    'xoxb-xxxx',
+    'xoxb-your-slack-token-here',
+  ])('does not match placeholders or prose: %s', (text: string) => {
+    const result = scanner.scan(text);
+    expect(result.findings).toHaveLength(0);
+  });
+});
+
+describe('gitlab-personal-access-token rule', () => {
+  const scanner = ruleScanner('gitlab-personal-access-token');
+
+  test('matches a realistic glpat- token', () => {
+    const result = scanner.scan('export GITLAB_TOKEN=glpat-EXAMPLExxxxEXAMPLExxxx');
+    expect(result.findings.some((f) => f.ruleId === 'gitlab-personal-access-token')).toBe(true);
+  });
+
+  test.each(['glpat-xxxx', 'set GITLAB_TOKEN to your glpat- value'])(
+    'does not match placeholders: %s',
+    (text: string) => {
+      const result = scanner.scan(text);
+      expect(result.findings).toHaveLength(0);
+    }
+  );
+});
+
+describe('gitlab-ci-job-token rule', () => {
+  const scanner = ruleScanner('gitlab-ci-job-token');
+
+  test('matches a realistic glcbt- token', () => {
+    const result = scanner.scan('CI_JOB_TOKEN=glcbt-EXAMP_EXAMPLExxxxEXAMPLExx');
+    expect(result.findings.some((f) => f.ruleId === 'gitlab-ci-job-token')).toBe(true);
+  });
+
+  test.each(['glcbt-xxxx', 'the CI_JOB_TOKEN variable name'])(
+    'does not match placeholders or prose: %s',
+    (text: string) => {
+      const result = scanner.scan(text);
+      expect(result.findings).toHaveLength(0);
+    }
+  );
+});
+
+describe('npm-access-token rule', () => {
+  const scanner = ruleScanner('npm-access-token');
+
+  test('matches a realistic npm_ token', () => {
+    const result = scanner.scan('//registry.npmjs.org/:_authToken=npm_EXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEx');
+    expect(result.findings.some((f) => f.ruleId === 'npm-access-token')).toBe(true);
+  });
+
+  test.each(['npm_token', 'NPM_TOKEN=changeme', 'run npm install'])(
+    'does not match placeholders or prose: %s',
+    (text: string) => {
+      const result = scanner.scan(text);
+      expect(result.findings).toHaveLength(0);
+    }
+  );
+});
+
+describe('twilio-api-key-sid rule', () => {
+  const scanner = ruleScanner('twilio-api-key-sid');
+
+  test('matches a realistic Twilio API Key SID', () => {
+    const result = scanner.scan('TWILIO_API_KEY_SID=SK00000000000000000000000000000000');
+    expect(result.findings.some((f) => f.ruleId === 'twilio-api-key-sid')).toBe(true);
+  });
+
+  test.each(['SKxxxx', 'your Twilio SK... API key'])(
+    'does not match placeholders or prose: %s',
+    (text: string) => {
+      const result = scanner.scan(text);
+      expect(result.findings).toHaveLength(0);
+    }
+  );
+});
+
+describe('twilio-account-sid rule', () => {
+  const scanner = ruleScanner('twilio-account-sid');
+
+  test('matches a realistic Twilio Account SID', () => {
+    const result = scanner.scan('account_sid = AC00000000000000000000000000000000');
+    expect(result.findings.some((f) => f.ruleId === 'twilio-account-sid')).toBe(true);
+  });
+
+  test('redacts as a low-severity identifier with partial-mask', () => {
+    const result = scanner.scan('AC00000000000000000000000000000000');
+    const finding = result.findings.find((f) => f.ruleId === 'twilio-account-sid') as NonNullable<
+      ReturnType<typeof result.findings.find>
+    >;
+    expect(finding.severity).toBe('low');
+    expect(finding.redactedValue).toContain('***');
+  });
+
+  test.each(['ACxxxx', 'the account SID starts with AC'])(
+    'does not match placeholders or prose: %s',
+    (text: string) => {
+      const result = scanner.scan(text);
+      expect(result.findings).toHaveLength(0);
+    }
+  );
+});
+
+describe('sendgrid-api-key rule', () => {
+  const scanner = ruleScanner('sendgrid-api-key');
+
+  test('matches a realistic SendGrid API key', () => {
+    const key = ['SG', 'EXAMPLExxxxEXAMPLExxxx', 'EXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEx'].join('.');
+    const result = scanner.scan(`SENDGRID_API_KEY=${key}`);
+    expect(result.findings.some((f) => f.ruleId === 'sendgrid-api-key')).toBe(true);
+  });
+
+  test.each(['SG.xxx.yyy', 'your SendGrid key looks like SG.<id>.<secret>'])(
+    'does not match placeholders or prose: %s',
+    (text: string) => {
+      const result = scanner.scan(text);
+      expect(result.findings).toHaveLength(0);
+    }
+  );
+});
+
+describe('gcp-service-account-key rule', () => {
+  const scanner = ruleScanner('gcp-service-account-key');
+
+  test('matches a service-account JSON envelope', () => {
+    const json =
+      '{"type": "service_account", "project_id": "demo", "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIB\\n-----END PRIVATE KEY-----\\n"}';
+    const result = scanner.scan(json);
+    expect(result.findings.some((f) => f.ruleId === 'gcp-service-account-key')).toBe(true);
+  });
+
+  test('matches even when the private key value is elided and fields are reordered', () => {
+    const json = '{ "private_key": "REDACTED", "client_email": "x@y", "type":"service_account" }';
+    const result = scanner.scan(json);
+    expect(result.findings.some((f) => f.ruleId === 'gcp-service-account-key')).toBe(true);
+  });
+
+  test.each([
+    'A service_account has a private_key field in its JSON.',
+    'Set the type to service account and store the key securely.',
+    '{"type": "user_account", "name": "demo"}',
+  ])('does not match prose about service accounts: %s', (text: string) => {
+    const result = scanner.scan(text);
+    expect(result.findings).toHaveLength(0);
+  });
+});
+
+describe('database-connection-string-credentials rule', () => {
+  const scanner = ruleScanner('database-connection-string-credentials');
+
+  test.each([
+    'postgres://user:EXAMPLEpassword@db.example.com:5432/mydb',
+    'postgresql://user:EXAMPLEpassword@db.example.com:5432/mydb',
+    'mysql://user:EXAMPLEpassword@10.0.0.5:3306/appdb',
+    'mongodb://user:EXAMPLEpassword@mongo1.example.com:27017/records',
+    'mongodb+srv://user:EXAMPLEpassword@cluster0.abcd.mongodb.net/records',
+    'redis://default:EXAMPLEpassword@redis.internal:6379/0',
+    'rediss://default:EXAMPLEpassword@redis.internal:6380/0',
+    'amqp://guest:EXAMPLEpassword@rabbit.example.com:5672/vhost',
+    'amqps://guest:EXAMPLEpassword@rabbit.example.com:5671/vhost',
+  ])('matches a URI with inline credentials: %s', (uri: string) => {
+    const result = scanner.scan(`DATABASE_URL=${uri}`);
+    expect(result.findings.some((f) => f.ruleId === 'database-connection-string-credentials')).toBe(true);
+  });
+
+  test('redacts with partial info preserved (partial-mask)', () => {
+    const result = scanner.scan('postgres://user:EXAMPLEpassword@db.example.com:5432/mydb');
+    const finding = result.findings.find(
+      (f) => f.ruleId === 'database-connection-string-credentials'
+    ) as NonNullable<ReturnType<typeof result.findings.find>>;
+    expect(finding.redactedValue).toContain('***');
+    expect(finding.redactedValue).not.toContain('EXAMPLEpassword');
+  });
+
+  test.each([
+    'postgres://localhost:5432/mydb',
+    'postgres://user@host',
+    'redis://localhost:6379/0',
+    'amqp://rabbit.example.com/vhost',
+    'mongodb://mongo1:27017/db',
+    'See https://www.postgresql.org/docs/current/libpq-connect.html',
+  ])('does not match credential-less URIs or docs URLs: %s', (text: string) => {
+    const result = scanner.scan(text);
+    expect(result.findings).toHaveLength(0);
+  });
+});
+

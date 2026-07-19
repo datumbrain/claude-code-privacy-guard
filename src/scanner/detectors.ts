@@ -167,6 +167,122 @@ export const BUILTIN_RULES: DetectionRule[] = [
     enabled: true,
   },
   {
+    id: 'slack-token',
+    title: 'Slack Token',
+    description: 'Detects Slack bot/user/legacy tokens (xoxb/xoxp/xoxa/xoxr) and app-level tokens (xapp)',
+    severity: 'high',
+    category: 'secret',
+    // Bot/user tokens carry 2-3 numeric ID segments then the secret; legacy
+    // xoxa/xoxr and app-level xapp use their own shapes. Requiring the ID
+    // segments avoids matching placeholders like "xoxb-your-token".
+    pattern: /\bxox[bp]-(?:[0-9]{8,}-){2,3}[A-Za-z0-9-]{16,}\b|\bxox[ar]-[0-9]-[0-9a-zA-Z]{18,}\b|\bxapp-[0-9]-[A-Za-z0-9]+-[0-9]+-[A-Za-z0-9]{16,}\b/g,
+    // Synthetic (all-zero / EXAMPLE) fixtures assembled at runtime so the full
+    // token never appears as one literal in source - keeps upstream secret
+    // scanners from false-positiving on these examples.
+    examples: [
+      ['xoxb', '000000000000', '000000000000', 'EXAMPLExxxxEXAMPLExxxx'].join('-'),
+      ['xapp', '1', 'EXAMPLE00000', '000000000000', 'EXAMPLExxxxEXAMPLExxxx'].join('-'),
+    ],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
+    id: 'gitlab-personal-access-token',
+    title: 'GitLab Personal Access Token',
+    description: 'Detects GitLab personal access tokens (default glpat- prefix)',
+    severity: 'high',
+    category: 'secret',
+    pattern: /\bglpat-[A-Za-z0-9_-]{20,64}\b/g,
+    examples: ['glpat-EXAMPLExxxxEXAMPLExxxx'],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
+    id: 'gitlab-ci-job-token',
+    title: 'GitLab CI Job Token',
+    description: 'Detects GitLab CI/CD job tokens (glcbt- prefix, GA since GitLab 16.9)',
+    severity: 'high',
+    category: 'secret',
+    pattern: /\bglcbt-[0-9A-Za-z]{1,5}_[A-Za-z0-9_-]{20}\b/g,
+    examples: ['glcbt-EXAMP_EXAMPLExxxxEXAMPLExx'],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
+    id: 'npm-access-token',
+    title: 'npm Access Token',
+    description: 'Detects npm access tokens (npm_ prefix, 36-char base62 body)',
+    severity: 'high',
+    category: 'secret',
+    pattern: /\bnpm_[A-Za-z0-9]{36}\b/g,
+    examples: ['npm_EXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEx'],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
+    id: 'twilio-api-key-sid',
+    title: 'Twilio API Key SID',
+    description: 'Detects Twilio API Key SIDs (SK + 32 hex), which pair with an API key secret',
+    severity: 'high',
+    category: 'secret',
+    pattern: /\bSK[0-9a-fA-F]{32}\b/g,
+    examples: ['SK00000000000000000000000000000000'],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
+    id: 'twilio-account-sid',
+    title: 'Twilio Account SID',
+    description: 'Detects Twilio Account SIDs (AC + 32 hex) - a public identifier, sensitive when paired with an auth token',
+    severity: 'low',
+    category: 'internal-data',
+    pattern: /\bAC[0-9a-fA-F]{32}\b/g,
+    examples: ['AC00000000000000000000000000000000'],
+    redactionStrategy: 'partial-mask',
+    enabled: true,
+  },
+  {
+    id: 'sendgrid-api-key',
+    title: 'SendGrid API Key',
+    description: 'Detects SendGrid API keys (SG.<22>.<43> format)',
+    severity: 'critical',
+    category: 'secret',
+    pattern: /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g,
+    // Assembled at runtime (see slack-token note) to avoid secret-scanner
+    // false positives on this synthetic fixture.
+    examples: [['SG', 'EXAMPLExxxxEXAMPLExxxx', 'EXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEx'].join('.')],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
+    id: 'gcp-service-account-key',
+    title: 'GCP Service Account Key JSON',
+    description: 'Detects a Google Cloud service-account key JSON envelope (type service_account co-occurring with a private_key field), even when the PEM is elided',
+    severity: 'critical',
+    category: 'secret',
+    // Requires BOTH the exact "type": "service_account" and a "private_key"
+    // field within a bounded window (either order) so prose describing service
+    // accounts does not match. Bounded lazy span keeps it ReDoS-safe.
+    pattern: /"type"\s*:\s*"service_account"[\s\S]{0,2000}?"private_key"\s*:\s*"|"private_key"\s*:\s*"[\s\S]{0,2000}?"type"\s*:\s*"service_account"/g,
+    examples: ['{"type": "service_account", "project_id": "demo", "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIB\\n-----END PRIVATE KEY-----\\n", "client_email": "svc@demo.iam.gserviceaccount.com"}'],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
+    id: 'database-connection-string-credentials',
+    title: 'Database Connection String with Credentials',
+    description: 'Detects database URIs with an inline password (scheme://user:password@host) for postgres/mysql/mongodb/redis/amqp',
+    severity: 'critical',
+    category: 'secret',
+    // Requires the ":password@" userinfo so credential-less URIs
+    // (scheme://host, scheme://user@host) never match. @ and / are illegal
+    // unencoded in RFC 3986 userinfo, so the class boundaries are reliable.
+    pattern: /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?):\/\/[^\s:/@]+:[^\s/@]+@[^\s/@]+/g,
+    examples: ['postgres://user:EXAMPLEpassword@db.example.com:5432/mydb'],
+    redactionStrategy: 'partial-mask',
+    enabled: true,
+  },
+  {
     id: 'generic-code-secret-assignment',
     title: 'Generic Code Secret Assignment',
     description: 'Detects likely hardcoded keys/tokens in code assignments',
