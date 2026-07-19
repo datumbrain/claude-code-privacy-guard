@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/prompt-guard-wrapper.sh",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/prompt-guard.js",
             "timeout": 10
           }
         ]
