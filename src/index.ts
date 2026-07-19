@@ -19,6 +19,7 @@ import { PrivacyScanner } from './scanner/engine.js';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from './scanner/detectors.js';
 import { Redactor } from './redactor/masker.js';
 import { ConfigLoader } from './config/loader.js';
+import { DetectionRule } from './types/findings.js';
 
 /**
  * Main MCP server
@@ -27,6 +28,8 @@ class PrivacyGuardServer {
   private server: Server;
   private scanner: PrivacyScanner;
   private config: ReturnType<ConfigLoader['getConfig']>;
+  private allRules: DetectionRule[];
+  private disabledRules: Set<string>;
 
   constructor() {
     this.server = new Server(
@@ -52,8 +55,9 @@ class PrivacyGuardServer {
     const externalRules = loadExternalRulesFromJson(externalRulesPath, {
       codingOnly: this.config.externalRulesMode !== 'all',
     });
-    const disabledRules = new Set(this.config.disabledRules);
-    const activeRules = [...BUILTIN_RULES, ...externalRules].filter((rule) => !disabledRules.has(rule.id));
+    this.allRules = [...BUILTIN_RULES, ...externalRules];
+    this.disabledRules = new Set(this.config.disabledRules);
+    const activeRules = this.allRules.filter((rule) => !this.disabledRules.has(rule.id));
     this.scanner = new PrivacyScanner(activeRules);
 
     this.setupHandlers();
@@ -96,6 +100,14 @@ class PrivacyGuardServer {
               },
             },
             required: ['text'],
+          },
+        },
+        {
+          name: 'list_rules',
+          description: 'List every detection rule (built-in and external) with its ID, title, severity, category, and whether it is currently disabled via disabledRules',
+          inputSchema: {
+            type: 'object',
+            properties: {},
           },
         },
       ],
@@ -141,6 +153,26 @@ class PrivacyGuardServer {
                   findingsCount: result.findings.length,
                   summary: Redactor.summarize(result),
                 }, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'list_rules': {
+          const rules = this.allRules.map((rule) => ({
+            id: rule.id,
+            title: rule.title,
+            severity: rule.severity,
+            category: rule.category,
+            source: rule.id.startsWith('external-') ? 'external' : 'builtin',
+            disabled: this.disabledRules.has(rule.id),
+          }));
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ rules, total: rules.length, disabledCount: this.disabledRules.size }, null, 2),
               },
             ],
           };

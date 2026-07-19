@@ -2,6 +2,7 @@
  * Pattern detectors for sensitive data
  */
 import * as fs from 'fs';
+import { createHash } from 'crypto';
 /**
  * Built-in detection rules
  * Start with high-value patterns that catch the most dangerous leaks
@@ -243,11 +244,13 @@ export function loadExternalRulesFromJson(jsonPath, options = {}) {
             catch {
                 continue;
             }
-            let id = `external-${slugify(entry.name)}`;
-            let suffix = 2;
-            while (usedIds.has(id)) {
-                id = `external-${slugify(entry.name)}-${suffix}`;
-                suffix += 1;
+            // Suffix with a short hash of the entry's own content (not its position)
+            // so IDs stay stable across data-file reordering, even on name collisions.
+            const baseId = `external-${slugify(entry.name)}`;
+            let id = baseId;
+            if (usedIds.has(id)) {
+                const contentHash = createHash('sha1').update(`${entry.name}:${entry.regex}`).digest('hex').slice(0, 6);
+                id = `${baseId}-${contentHash}`;
             }
             usedIds.add(id);
             rules.push({

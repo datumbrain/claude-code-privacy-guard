@@ -61,7 +61,7 @@ function maskMatch(value) {
 if (result.findings.length > 0) {
   // Build detailed findings list
   const findingsList = result.findings.map(f =>
-    `  - ${f.title}: ${maskMatch(f.match)}`
+    `  - ${f.title} (${f.ruleId}): ${maskMatch(f.match)}`
   ).join('\n');
 
   // Return blocking decision as JSON
@@ -71,7 +71,8 @@ if (result.findings.length > 0) {
             `Found ${result.findings.length} sensitive item(s):\n${findingsList}\n\n` +
             `Risk Score: ${result.riskScore}/100\n` +
             `Secrets: ${result.summary.secret || 0} | PII: ${result.summary.pii || 0}\n\n` +
-            `Please remove or anonymize sensitive data before proceeding.`
+            `Please remove or anonymize sensitive data before proceeding.\n` +
+            `To disable a rule, add its ID to "disabledRules" in .privacy-guard.json.`
   };
 
   console.log(JSON.stringify(response, null, 2));
