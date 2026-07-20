@@ -38,7 +38,9 @@ Once restarted, the plugin will automatically scan all prompts before they reach
 ✅ **Secrets**
 - OpenAI API keys (`sk-...`, `sk-proj-...`)
 - AWS credentials
-- GitHub tokens
+- GitHub tokens (classic and fine-grained PATs)
+- GitLab tokens (personal access, deploy, runner, pipeline trigger, service account)
+- Azure client secrets (Microsoft Entra ID)
 - Stripe keys
 - JWT tokens
 - Bearer tokens
