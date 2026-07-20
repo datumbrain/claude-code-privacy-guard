@@ -89,6 +89,64 @@ describe('openai-api-key rule', () => {
   });
 });
 
+describe('github-token rule', () => {
+  const githubRule = BUILTIN_RULES.find((rule) => rule.id === 'github-token') as DetectionRule;
+  const scanner = new PrivacyScanner([githubRule]);
+
+  test.each([
+    'ghp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789',
+    'github_pat_11ABCDEFG0abcdefghijklm_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcdefghijklmnopqrstuvw',
+  ])('matches realistic token: %s', (token: string) => {
+    const result = scanner.scan(`my token is ${token}`);
+    expect(result.findings.some((finding) => finding.ruleId === 'github-token')).toBe(true);
+  });
+
+  test('does not match prose mentioning github_pat or short placeholders', () => {
+    const result = scanner.scan('set github_pat_here and ghp_abc123 in your env');
+    expect(result.findings).toHaveLength(0);
+  });
+});
+
+describe('gitlab-token rule', () => {
+  const gitlabRule = BUILTIN_RULES.find((rule) => rule.id === 'gitlab-token') as DetectionRule;
+  const scanner = new PrivacyScanner([gitlabRule]);
+
+  test.each([
+    'glpat-abcdefghij1234567890',
+    'glpat-EXAMPLEabcd1234567890.01.0example12',
+    'gldt-AbCdEfGhIjKlMnOpQrSt',
+    'glrt-t1_AbCdEfGhIjKlMnOpQr',
+  ])('matches realistic token: %s', (token: string) => {
+    const result = scanner.scan(`CI_JOB_TOKEN=${token}`);
+    expect(result.findings.some((finding) => finding.ruleId === 'gitlab-token')).toBe(true);
+  });
+
+  test('does not match prose or short placeholder values', () => {
+    const result = scanner.scan('create a glpat-style token; glpat-abc123 is a placeholder');
+    expect(result.findings).toHaveLength(0);
+  });
+});
+
+describe('azure-client-secret rule', () => {
+  const azureRule = BUILTIN_RULES.find((rule) => rule.id === 'azure-client-secret') as DetectionRule;
+  const scanner = new PrivacyScanner([azureRule]);
+
+  test.each([
+    'q_x8Q~AbCdEfGhIjKlMnOpQrStUvWxYz.12345~a',
+    'Iq18Q~yfZ2K7Vt.wNxE4pDb-Mh9cRj3sGl6uT',
+  ])('matches realistic secret: %s', (secret: string) => {
+    const result = scanner.scan(`AZURE_CLIENT_SECRET=${secret}`);
+    expect(result.findings.some((finding) => finding.ruleId === 'azure-client-secret')).toBe(true);
+  });
+
+  test('does not match GUIDs or generic base64-like strings', () => {
+    const result = scanner.scan(
+      'client_id 4f9d2b1a-7c3e-4a5b-9d8f-1e2a3b4c5d6e value dGhpc2lzYWxvbmdiYXNlNjRzdHJpbmc0MGNoYXJz'
+    );
+    expect(result.findings).toHaveLength(0);
+  });
+});
+
 describe('bearer-token rule', () => {
   const bearerRule = BUILTIN_RULES.find((rule) => rule.id === 'bearer-token') as DetectionRule;
   const scanner = new PrivacyScanner([bearerRule]);
@@ -224,23 +282,6 @@ describe('slack-token rule', () => {
     const result = scanner.scan(text);
     expect(result.findings).toHaveLength(0);
   });
-});
-
-describe('gitlab-personal-access-token rule', () => {
-  const scanner = ruleScanner('gitlab-personal-access-token');
-
-  test('matches a realistic glpat- token', () => {
-    const result = scanner.scan('export GITLAB_TOKEN=glpat-EXAMPLExxxxEXAMPLExxxx');
-    expect(result.findings.some((f) => f.ruleId === 'gitlab-personal-access-token')).toBe(true);
-  });
-
-  test.each(['glpat-xxxx', 'set GITLAB_TOKEN to your glpat- value'])(
-    'does not match placeholders: %s',
-    (text: string) => {
-      const result = scanner.scan(text);
-      expect(result.findings).toHaveLength(0);
-    }
-  );
 });
 
 describe('gitlab-ci-job-token rule', () => {
