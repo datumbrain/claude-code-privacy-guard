@@ -11,4 +11,3 @@ export interface RuleRow {
     disabled: boolean;
 }
 export declare function renderPage(rules: RuleRow[], token: string, configPath: string, isGlobal: boolean): string;
-//# sourceMappingURL=page.d.ts.map

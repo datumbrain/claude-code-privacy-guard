@@ -6,4 +6,3 @@
  * from leaking into AI prompts.
  */
 export {};
-//# sourceMappingURL=index.d.ts.map

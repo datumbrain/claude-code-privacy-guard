@@ -2,8 +2,11 @@
 node_modules/
 
 # Build output
-# Note: dist/ is committed because Claude Code plugins need pre-built files
+# Note: dist/ is committed because Claude Code plugins need pre-built files.
 # dist/
+# Source maps are disabled in tsconfig; block them so stray maps can never be
+# committed even if a contributor builds with a different config.
+dist/**/*.map
 *.tsbuildinfo
 
 # Logs

@@ -17,4 +17,3 @@ export declare class Redactor {
     static formatFindings(findings: Finding[]): string;
     private static truncate;
 }
-//# sourceMappingURL=masker.d.ts.map

@@ -34,4 +34,3 @@ export function writeDisabledRules(configPath, disabledRules) {
     const updated = { ...existing, disabledRules: [...disabledRules].sort() };
     fs.writeFileSync(configPath, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
 }
-//# sourceMappingURL=config-writer.js.map

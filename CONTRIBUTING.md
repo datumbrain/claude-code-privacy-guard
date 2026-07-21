@@ -55,9 +55,16 @@ npm run build
 git add dist/
 ```
 
-A PR that changes `src/` without a matching `dist/` change will leave the
-installed plugin behavior out of sync with the source and will not be
-merged.
+`dist/` is a generated artifact, not something reviewers read. It's marked
+`linguist-generated` in `.gitattributes`, so GitHub collapses it in PR diffs
+- reviewers look at `src/` only. Correctness is enforced mechanically instead:
+CI runs a clean `npm run build` and **fails the PR if the committed `dist/`
+doesn't match**, so a stale or hand-edited `dist/` cannot be merged. Just
+rebuild and commit; don't worry about the diff being unreadable.
+
+Source maps are intentionally disabled (`sourceMap` / `declarationMap` off in
+`tsconfig.json`) - they add no value to a shipped plugin and only bloated the
+diff, so no `*.map` files should ever appear under `dist/`.
 
 ## Release process
 

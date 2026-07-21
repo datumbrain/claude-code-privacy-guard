@@ -18,4 +18,3 @@ switch (command) {
         console.error(`Unknown command: ${command}\n\nUsage: claude-code-privacy-guard rules`);
         process.exit(1);
 }
-//# sourceMappingURL=index.js.map

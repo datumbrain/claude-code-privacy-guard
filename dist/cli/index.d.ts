@@ -5,4 +5,3 @@
  * Usage: npx claude-code-privacy-guard rules
  */
 export {};
-//# sourceMappingURL=index.d.ts.map

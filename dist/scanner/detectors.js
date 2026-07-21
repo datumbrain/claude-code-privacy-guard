@@ -272,4 +272,3 @@ export function loadExternalRulesFromJson(jsonPath, options = {}) {
         return [];
     }
 }
-//# sourceMappingURL=detectors.js.map

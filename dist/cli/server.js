@@ -108,4 +108,3 @@ async function openInBrowser(url) {
         console.log('Could not auto-open a browser - open the URL above manually.');
     }
 }
-//# sourceMappingURL=server.js.map

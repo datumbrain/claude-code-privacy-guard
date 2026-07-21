@@ -142,4 +142,3 @@ render('');
 function escapeHtml(value) {
     return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-//# sourceMappingURL=page.js.map

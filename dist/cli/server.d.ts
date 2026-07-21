@@ -6,4 +6,3 @@
  * you can toggle and save again without restarting).
  */
 export declare function startRulesServer(): Promise<void>;
-//# sourceMappingURL=server.d.ts.map

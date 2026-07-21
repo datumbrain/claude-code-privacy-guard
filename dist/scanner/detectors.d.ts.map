@@ -1,1 +1,0 @@
-{"version":3,"file":"detectors.d.ts","sourceRoot":"","sources":["../../src/scanner/detectors.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,EAAE,aAAa,EAAE,MAAM,sBAAsB,CAAC;AAYrD,UAAU,mBAAmB;IAC3B,UAAU,CAAC,EAAE,OAAO,CAAC;CACtB;AAED;;;GAGG;AACH,eAAO,MAAM,aAAa,EAAE,aAAa,EAsKxC,CAAC;AAgDF;;GAEG;AACH,wBAAgB,yBAAyB,CACvC,QAAQ,EAAE,MAAM,EAChB,OAAO,GAAE,mBAAwB,GAChC,aAAa,EAAE,CAwDjB"}

@@ -47,4 +47,3 @@ export interface PrivacyGuardConfig {
     externalRulesJsonPath?: string;
     externalRulesMode?: 'coding-only' | 'all';
 }
-//# sourceMappingURL=findings.d.ts.map

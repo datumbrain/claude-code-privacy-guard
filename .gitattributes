@@ -1,0 +1,12 @@
+# dist/ is compiled output from src/ (tsc). It must stay committed because the
+# plugin is installed straight from this repo with no build step, but it is a
+# generated artifact and should never be reviewed or hand-edited.
+#
+# - linguist-generated: collapses these files in GitHub PR diffs and excludes
+#   them from language stats.
+# - -diff: suppresses textual diffs so reviewers focus on src/ changes.
+#
+# CI (.github/workflows/ci.yml) rebuilds dist/ and fails if it differs from the
+# committed output, so correctness is guaranteed without manual review.
+dist/** linguist-generated=true
+dist/** -diff

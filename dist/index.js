@@ -167,4 +167,3 @@ class PrivacyGuardServer {
 // Start the server
 const server = new PrivacyGuardServer();
 server.run().catch(console.error);
-//# sourceMappingURL=index.js.map

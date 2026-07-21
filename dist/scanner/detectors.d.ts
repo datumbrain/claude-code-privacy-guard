@@ -15,4 +15,3 @@ export declare const BUILTIN_RULES: DetectionRule[];
  */
 export declare function loadExternalRulesFromJson(jsonPath: string, options?: ExternalRuleOptions): DetectionRule[];
 export {};
-//# sourceMappingURL=detectors.d.ts.map

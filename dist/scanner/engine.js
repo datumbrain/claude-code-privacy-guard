@@ -128,4 +128,3 @@ export class PrivacyScanner {
         return Math.min(100, totalWeight);
     }
 }
-//# sourceMappingURL=engine.js.map

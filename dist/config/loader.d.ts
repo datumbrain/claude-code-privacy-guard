@@ -12,4 +12,3 @@ export declare class ConfigLoader {
      */
     static findConfig(startDir?: string): string | null;
 }
-//# sourceMappingURL=loader.d.ts.map

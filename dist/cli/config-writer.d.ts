@@ -13,4 +13,3 @@
 export declare function resolveConfigPath(startDir?: string): string;
 export declare function isGlobalConfigPath(configPath: string): boolean;
 export declare function writeDisabledRules(configPath: string, disabledRules: string[]): void;
-//# sourceMappingURL=config-writer.d.ts.map

@@ -47,4 +47,3 @@ export class Redactor {
         return text.slice(0, maxLength) + '...';
     }
 }
-//# sourceMappingURL=masker.js.map
