@@ -83,14 +83,14 @@ if [[ "$confirm_publish" =~ ^[Yy]$ ]]; then
   # --tags` + hand-maintained CHANGELOG.md.
   git push
   gh release create "${new_version}" \
-    --title "v${new_version}" \
+    --title "${new_version}" \
     --target "$(git rev-parse HEAD)" \
     --generate-notes \
     --latest
   echo "Published: https://github.com/datumbrain/claude-code-privacy-guard/releases/tag/${new_version}"
 else
   echo "Release commit created locally (not pushed). To publish later, run:"
-  echo "  git push && gh release create ${new_version} --title v${new_version} --generate-notes --latest"
+  echo "  git push && gh release create ${new_version} --title ${new_version} --generate-notes --latest"
 fi
 
 echo "Release complete: v${new_version}"
