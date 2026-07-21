@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.2 - 2026-07-22
+
+- chore: remove npm publish step from release script
+- feat: detect GitLab tokens and Azure client secrets
+- feat: add Slack, GitLab, npm, Twilio, SendGrid, GCP SA, and DB connection-string detectors
+- fix: merge overlapping findings and guard against empty-match regex hang
+- fix: make the hook cross-platform by removing the bash wrapper
+- test: add false-positive regression corpus
+
+
 ## v0.2.1 - 2026-07-22
 
 - chore: stop committing source maps and make dist/ non-reviewed generated output
