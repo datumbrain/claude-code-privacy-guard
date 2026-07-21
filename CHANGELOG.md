@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.1 - 2026-07-22
+
+- chore: stop committing source maps and make dist/ non-reviewed generated output
+
+
 ## v0.2.0 - 2026-07-20
 
 - feat: add rule ID visibility, stable IDs, list_rules tool, and rules-picker CLI
