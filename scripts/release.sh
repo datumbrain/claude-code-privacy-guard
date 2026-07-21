@@ -93,9 +93,4 @@ if [[ "$confirm_push" =~ ^[Yy]$ ]]; then
   git push --tags
 fi
 
-read -r -p "Publish to npm? [y/N]: " confirm_publish
-if [[ "$confirm_publish" =~ ^[Yy]$ ]]; then
-  npm publish
-fi
-
 echo "Release complete: v${new_version}"
