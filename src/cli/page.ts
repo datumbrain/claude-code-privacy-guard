@@ -1,6 +1,7 @@
 /**
- * Self-contained HTML page for the local rules-picker UI. No external
- * assets/CDNs - everything is inlined so it works fully offline.
+ * HTML page for the local rules-picker UI. Everything is inlined except the
+ * logo, which the server serves from the local-only /logo.png route - no
+ * external CDNs or network calls.
  */
 
 export interface RuleRow {
@@ -26,6 +27,8 @@ export function renderPage(rules: RuleRow[], token: string, configPath: string, 
 <style>
   :root { color-scheme: light dark; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 2rem; max-width: 860px; margin-inline: auto; }
+  .brand { display: flex; align-items: center; gap: 0.5rem; }
+  .brand img { height: 1.3rem; width: 1.3rem; border-radius: 4px; position: relative; top: 4px; }
   h1 { font-size: 1.3rem; margin-bottom: 0.25rem; }
   .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 1.5rem; }
   .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
@@ -48,7 +51,10 @@ export function renderPage(rules: RuleRow[], token: string, configPath: string, 
 </style>
 </head>
 <body>
-  <h1>Privacy Guard - Rule Toggles</h1>
+  <div class="brand">
+    <img src="/logo.png" alt="Claude Code Privacy Guard logo">
+    <h1>Privacy Guard - Rule Toggles</h1>
+  </div>
   <div class="subtitle">${escapeHtml(scopeLabel)}<br>Config: <code>${escapeHtml(configPath)}</code> - uncheck a rule to disable it, saved automatically to <code>disabledRules</code></div>
   <div class="toolbar">
     <input type="search" id="search" placeholder="Filter by id, title, or category...">

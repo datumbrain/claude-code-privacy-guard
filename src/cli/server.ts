@@ -7,6 +7,7 @@
  */
 
 import * as http from 'http';
+import * as fs from 'fs';
 import { randomBytes } from 'crypto';
 import { fileURLToPath } from 'url';
 
@@ -39,6 +40,8 @@ export async function startRulesServer(): Promise<void> {
     disabled: disabledRules.has(rule.id),
   }));
 
+  const logoPath = fileURLToPath(new URL('../../assets/claude-code-privacy-guard-logo.png', import.meta.url));
+
   const token = randomBytes(16).toString('hex');
 
   const server = http.createServer((req, res) => {
@@ -47,6 +50,19 @@ export async function startRulesServer(): Promise<void> {
     if (req.method === 'GET' && req.url === '/') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(renderPage(rules, token, configPath, isGlobalConfigPath(configPath)));
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/logo.png') {
+      fs.readFile(logoPath, (err, data) => {
+        if (err) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not found');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' });
+        res.end(data);
+      });
       return;
     }
 

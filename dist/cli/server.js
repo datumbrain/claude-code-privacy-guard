@@ -6,6 +6,7 @@
  * you can toggle and save again without restarting).
  */
 import * as http from 'http';
+import * as fs from 'fs';
 import { randomBytes } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../scanner/detectors.js';
@@ -32,12 +33,25 @@ export async function startRulesServer() {
         source: rule.id.startsWith('external-') ? 'external' : 'builtin',
         disabled: disabledRules.has(rule.id),
     }));
+    const logoPath = fileURLToPath(new URL('../../assets/claude-code-privacy-guard-logo.png', import.meta.url));
     const token = randomBytes(16).toString('hex');
     const server = http.createServer((req, res) => {
         resetInactivityTimer();
         if (req.method === 'GET' && req.url === '/') {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(renderPage(rules, token, configPath, isGlobalConfigPath(configPath)));
+            return;
+        }
+        if (req.method === 'GET' && req.url === '/logo.png') {
+            fs.readFile(logoPath, (err, data) => {
+                if (err) {
+                    res.writeHead(404, { 'Content-Type': 'text/plain' });
+                    res.end('Not found');
+                    return;
+                }
+                res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' });
+                res.end(data);
+            });
             return;
         }
         if (req.method === 'POST' && req.url === '/save') {

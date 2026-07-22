@@ -8,7 +8,8 @@
   },
   "files": [
     "dist",
-    "data"
+    "data",
+    "assets"
   ],
   "scripts": {
     "build": "tsc",

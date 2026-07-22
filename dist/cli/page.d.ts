@@ -1,6 +1,7 @@
 /**
- * Self-contained HTML page for the local rules-picker UI. No external
- * assets/CDNs - everything is inlined so it works fully offline.
+ * HTML page for the local rules-picker UI. Everything is inlined except the
+ * logo, which the server serves from the local-only /logo.png route - no
+ * external CDNs or network calls.
  */
 export interface RuleRow {
     id: string;
