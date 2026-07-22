@@ -56,6 +56,22 @@ function finish(exitPath, code) {
   process.exit(code);
 }
 
+// Pull the user's prompt out of the UserPromptSubmit stdin payload. Falls back
+// to the raw text when stdin isn't the expected JSON envelope (e.g. the script
+// invoked manually with a piped prompt, or a future protocol change) so the
+// guard still scans something rather than silently allowing everything.
+function extractPrompt(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) return raw;
+  try {
+    const payload = JSON.parse(trimmed);
+    if (payload && typeof payload.prompt === 'string') return payload.prompt;
+  } catch {
+    // Not JSON after all - fall through and scan the raw text.
+  }
+  return raw;
+}
+
 debugLog([
   `=== Hook Execution ${new Date().toISOString()} ===`,
   `CLAUDE_PLUGIN_ROOT: ${process.env.CLAUDE_PLUGIN_ROOT ?? ''}`,
@@ -64,10 +80,15 @@ debugLog([
 ]);
 
 try {
-  // Read the user's prompt from stdin (passed by Claude Code).
+  // Read the hook payload from stdin (passed by Claude Code). Claude Code sends
+  // a JSON envelope - {"session_id":...,"prompt":"..."} - not the bare prompt,
+  // so only the "prompt" field may be scanned or echoed back. Scanning the raw
+  // envelope would both produce false positives on paths/ids and leak the JSON
+  // into redact mode's copy-pasteable output.
   let promptText = '';
   try {
-    promptText = readFileSync(0, 'utf-8');
+    const raw = readFileSync(0, 'utf-8');
+    promptText = extractPrompt(raw);
   } catch (error) {
     // The shell wrapper discarded stderr when debug was off; keep stderr quiet
     // and route the error to the debug log instead. Exit non-zero as before -
