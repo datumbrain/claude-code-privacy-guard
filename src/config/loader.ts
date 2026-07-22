@@ -8,11 +8,8 @@ import * as path from 'path';
 
 const DEFAULT_CONFIG: PrivacyGuardConfig = {
   enabled: true,
-  strictMode: false,
   allowedDomains: [],
   disabledRules: [],
-  redactionStyle: 'placeholder',
-  autoMaskOnHighRisk: true,
 };
 
 export class ConfigLoader {

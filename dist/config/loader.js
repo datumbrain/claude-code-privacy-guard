@@ -5,11 +5,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 const DEFAULT_CONFIG = {
     enabled: true,
-    strictMode: false,
     allowedDomains: [],
     disabledRules: [],
-    redactionStyle: 'placeholder',
-    autoMaskOnHighRisk: true,
 };
 export class ConfigLoader {
     config;

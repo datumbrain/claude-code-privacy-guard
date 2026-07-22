@@ -5,8 +5,25 @@ import { BUILTIN_RULES } from './detectors.js';
 export class PrivacyScanner {
     rules;
     counterMap = new Map();
-    constructor(rules = BUILTIN_RULES) {
+    allowedDomains;
+    constructor(rules = BUILTIN_RULES, options = {}) {
         this.rules = rules.filter(r => r.enabled);
+        this.allowedDomains = (options.allowedDomains ?? []).map(d => d.trim().toLowerCase()).filter(Boolean);
+    }
+    /**
+     * Whether a finding should be suppressed by the domain allowlist. Only
+     * applies to email findings: an allowlisted domain matches the exact domain
+     * or any subdomain of it (e.g. `example.com` allows `a@example.com` and
+     * `a@mail.example.com`).
+     */
+    isAllowlisted(finding) {
+        if (this.allowedDomains.length === 0 || finding.ruleId !== 'email-address') {
+            return false;
+        }
+        const domain = finding.match.split('@')[1]?.toLowerCase();
+        if (!domain)
+            return false;
+        return this.allowedDomains.some(d => domain === d || domain.endsWith('.' + d));
     }
     /**
      * Scan text for sensitive data
@@ -19,10 +36,14 @@ export class PrivacyScanner {
             const ruleFindings = this.detectWithRule(text, rule);
             findings.push(...ruleFindings);
         }
+        // Drop findings suppressed by the domain allowlist before any scoring so
+        // risk score, summary, and redacted text all stay consistent with what
+        // the guard actually acts on.
+        const kept = findings.filter(f => !this.isAllowlisted(f));
         // Sort findings by position
-        findings.sort((a, b) => a.startIndex - b.startIndex);
+        kept.sort((a, b) => a.startIndex - b.startIndex);
         // Resolve overlaps so the same span is not redacted or counted twice
-        const mergedFindings = this.mergeOverlappingFindings(findings);
+        const mergedFindings = this.mergeOverlappingFindings(kept);
         // Generate redacted text
         const redactedText = this.redactText(text, mergedFindings);
         // Calculate risk metrics

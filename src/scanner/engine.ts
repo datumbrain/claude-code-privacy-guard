@@ -5,12 +5,39 @@
 import { DetectionRule, Finding, ScanResult, Severity } from '../types/findings.js';
 import { BUILTIN_RULES } from './detectors.js';
 
+export interface ScannerOptions {
+  /**
+   * Email domains to allowlist. Findings from the `email-address` rule whose
+   * domain matches one of these (exact match or a subdomain) are dropped
+   * before scoring, so documented example addresses like `user@example.com`
+   * don't trip the guard. Matching is case-insensitive.
+   */
+  allowedDomains?: string[];
+}
+
 export class PrivacyScanner {
   private rules: DetectionRule[];
   private counterMap: Map<string, number> = new Map();
+  private allowedDomains: string[];
 
-  constructor(rules: DetectionRule[] = BUILTIN_RULES) {
+  constructor(rules: DetectionRule[] = BUILTIN_RULES, options: ScannerOptions = {}) {
     this.rules = rules.filter(r => r.enabled);
+    this.allowedDomains = (options.allowedDomains ?? []).map(d => d.trim().toLowerCase()).filter(Boolean);
+  }
+
+  /**
+   * Whether a finding should be suppressed by the domain allowlist. Only
+   * applies to email findings: an allowlisted domain matches the exact domain
+   * or any subdomain of it (e.g. `example.com` allows `a@example.com` and
+   * `a@mail.example.com`).
+   */
+  private isAllowlisted(finding: Finding): boolean {
+    if (this.allowedDomains.length === 0 || finding.ruleId !== 'email-address') {
+      return false;
+    }
+    const domain = finding.match.split('@')[1]?.toLowerCase();
+    if (!domain) return false;
+    return this.allowedDomains.some(d => domain === d || domain.endsWith('.' + d));
   }
 
   /**
@@ -26,11 +53,16 @@ export class PrivacyScanner {
       findings.push(...ruleFindings);
     }
 
+    // Drop findings suppressed by the domain allowlist before any scoring so
+    // risk score, summary, and redacted text all stay consistent with what
+    // the guard actually acts on.
+    const kept = findings.filter(f => !this.isAllowlisted(f));
+
     // Sort findings by position
-    findings.sort((a, b) => a.startIndex - b.startIndex);
+    kept.sort((a, b) => a.startIndex - b.startIndex);
 
     // Resolve overlaps so the same span is not redacted or counted twice
-    const mergedFindings = this.mergeOverlappingFindings(findings);
+    const mergedFindings = this.mergeOverlappingFindings(kept);
 
     // Generate redacted text
     const redactedText = this.redactText(text, mergedFindings);

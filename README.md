@@ -13,7 +13,7 @@ A privacy-first plugin for Claude Code that scans prompts for sensitive data and
 - ✅ **Works locally** - all scanning happens on your machine
 - ✅ **Zero configuration** - works out of the box
 - ✅ **Detailed reporting** - shows exactly what was detected
-- ✅ **Toggle individual rules** - via `disabledRules`, a `list_rules` MCP tool, or `npx claude-code-privacy-guard rules` for a local web UI
+- ✅ **Toggle individual rules** - via `disabledRules` or `npx claude-code-privacy-guard rules` for a local web UI
 
 ## Installation
 
@@ -101,16 +101,14 @@ file.
 | `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see [Managing Rules](#managing-rules) below for how to discover and toggle IDs. |
 | `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. |
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
-| `strictMode` | `boolean` | `false` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
-| `allowedDomains` | `string[]` | `[]` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
-| `redactionStyle` | `"placeholder" \| "mask" \| "remove"` | `"placeholder"` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
-| `autoMaskOnHighRisk` | `boolean` | `true` | ⚠️ Accepted in config but not yet enforced by the scanner ([#6](https://github.com/datumbrain/claude-code-privacy-guard/issues/6)). |
+| `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Email domains to allow through the `email-address` rule. An entry matches the exact domain or any subdomain (e.g. `example.com` allows `a@example.com` and `a@mail.example.com`); matching is case-insensitive. |
 
 Example:
 
 ```json
 {
   "enabled": true,
+  "allowedDomains": ["example.com"],
   "disabledRules": [],
   "externalRulesJsonPath": "./data/regex_list_1.json",
   "externalRulesMode": "coding-only"
@@ -130,8 +128,6 @@ npx claude-code-privacy-guard rules
 This starts a local-only web UI (bound to `127.0.0.1`, never exposed to your network) listing every rule with its ID, title, severity, and category. Toggling a rule saves automatically to `disabledRules`.
 
 It edits whichever `.privacy-guard.json` `ConfigLoader.findConfig` would resolve for the directory you run it from: an existing project-level config always wins, but if none exists anywhere up the directory tree it falls back to `~/.privacy-guard.json` - a systemwide default that applies to every project, since Privacy Guard is protecting you, not one repo. Run it from `~` (or any directory with no project-level config) to edit that global default; run it from inside a specific project to create or edit a project-level override instead. The page and console output both tell you which one you're editing.
-
-If you're working inside a Claude Code chat session instead, the MCP server also exposes a `list_rules` tool that returns the same id/title/severity/category/enabled data for each rule.
 
 ## Development
 
