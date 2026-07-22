@@ -10,11 +10,18 @@ export interface ScannerOptions {
      * don't trip the guard. Matching is case-insensitive.
      */
     allowedDomains?: string[];
+    /**
+     * Maximum number of characters scanned by the rule engine. Text beyond this
+     * length is appended to the output untouched (and unscanned). Defaults to
+     * {@link DEFAULT_MAX_SCAN_LENGTH}.
+     */
+    maxScanLength?: number;
 }
 export declare class PrivacyScanner {
     private rules;
     private counterMap;
     private allowedDomains;
+    private maxScanLength;
     constructor(rules?: DetectionRule[], options?: ScannerOptions);
     /**
      * Whether a finding should be suppressed by the domain allowlist. Only

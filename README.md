@@ -99,7 +99,7 @@ file.
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` | ✅ Implemented. Set to `false` to disable the plugin entirely without uninstalling it. |
 | `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see [Managing Rules](#managing-rules) below for how to discover and toggle IDs. |
-| `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. |
+| `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. Patterns that look prone to catastrophic backtracking are skipped at load time (with a console warning) rather than risking a hang. |
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
 | `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Email domains to allow through the `email-address` rule. An entry matches the exact domain or any subdomain (e.g. `example.com` allows `a@example.com` and `a@mail.example.com`); matching is case-insensitive. |
 

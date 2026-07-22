@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, jest, test } from '@jest/globals';
 import { PrivacyScanner } from '../src/scanner/engine';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../src/scanner/detectors';
 import { DetectionRule } from '../src/types/findings';
@@ -236,6 +236,68 @@ describe('empty-match guard (issue #31)', () => {
     } finally {
       fs.unlinkSync(tmpPath);
     }
+  });
+});
+
+describe('ReDoS guard (issue #21)', () => {
+  test('external rule loading rejects a catastrophic-backtracking regex', () => {
+    const tmpPath = path.join(os.tmpdir(), `ccpg-redos-${Date.now()}.json`);
+    fs.writeFileSync(
+      tmpPath,
+      JSON.stringify([
+        {
+          name: 'pathological token',
+          description: 'nested quantifiers, classic catastrophic backtracking shape',
+          regex: '(x+x+)+y',
+          risk: 5,
+          category: 'secret',
+        },
+        {
+          name: 'token valid',
+          description: 'good',
+          regex: 'AKIA[0-9A-Z]{16}',
+          risk: 8,
+          category: 'secret',
+        },
+      ])
+    );
+
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const rules = loadExternalRulesFromJson(tmpPath, { codingOnly: false });
+      expect(rules.map((rule) => rule.pattern)).not.toContain('(x+x+)+y');
+      expect(rules.map((rule) => rule.pattern)).toContain('AKIA[0-9A-Z]{16}');
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('pathological token'));
+    } finally {
+      warnSpy.mockRestore();
+      fs.unlinkSync(tmpPath);
+    }
+  });
+});
+
+describe('scanned input length cap (issue #21)', () => {
+  test('scan caps the portion of text run through the rule engine', () => {
+    const awsKeyRule = BUILTIN_RULES.find((rule) => rule.id === 'aws-api-key') as DetectionRule;
+    const scanner = new PrivacyScanner([awsKeyRule], { maxScanLength: 20 });
+
+    // The key sits well past the 20-char scan window, so it must pass through
+    // untouched in the output rather than being detected or dropped.
+    const padding = 'x'.repeat(30);
+    const text = `${padding}AKIAIOSFODNN7EXAMPLE`;
+    const result = scanner.scan(text);
+
+    expect(result.findings).toHaveLength(0);
+    expect(result.redactedText).toBe(text);
+  });
+
+  test('scan still detects matches within the maxScanLength window', () => {
+    const awsKeyRule = BUILTIN_RULES.find((rule) => rule.id === 'aws-api-key') as DetectionRule;
+    const scanner = new PrivacyScanner([awsKeyRule], { maxScanLength: 50 });
+
+    const result = scanner.scan('key: AKIAIOSFODNN7EXAMPLE');
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.redactedText).toBe('key: <SECRET>');
   });
 });
 

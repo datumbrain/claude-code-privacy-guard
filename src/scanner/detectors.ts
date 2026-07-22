@@ -5,6 +5,7 @@
 import { DetectionRule } from '../types/findings.js';
 import * as fs from 'fs';
 import { createHash } from 'crypto';
+import safeRegex from 'safe-regex2';
 
 interface ExternalRegexEntry {
   name: string;
@@ -398,6 +399,17 @@ export function loadExternalRulesFromJson(
           continue;
         }
       } catch {
+        continue;
+      }
+
+      // Reject patterns with catastrophic-backtracking shapes (nested/stacked
+      // quantifiers, e.g. `(x+x+)+y`) before they ever run against user input.
+      // A hang here would burn the hook's timeout on every prompt until the
+      // rule is manually found and removed from the data file.
+      if (!safeRegex(entry.regex)) {
+        console.warn(
+          `Privacy Guard: skipping external rule "${entry.name}" - regex looks unsafe (possible catastrophic backtracking): ${entry.regex}`
+        );
         continue;
       }
 
