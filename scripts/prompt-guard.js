@@ -96,7 +96,8 @@ try {
   // Honor disabledRules from config for both built-in and external rules
   const disabledRules = new Set(config.disabledRules);
   const scanner = new PrivacyScanner(
-    [...BUILTIN_RULES, ...externalRules].filter((rule) => !disabledRules.has(rule.id))
+    [...BUILTIN_RULES, ...externalRules].filter((rule) => !disabledRules.has(rule.id)),
+    { allowedDomains: config.allowedDomains }
   );
 
   // Scan the prompt

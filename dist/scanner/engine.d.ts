@@ -2,10 +2,27 @@
  * Core scanning engine
  */
 import { DetectionRule, ScanResult } from '../types/findings.js';
+export interface ScannerOptions {
+    /**
+     * Email domains to allowlist. Findings from the `email-address` rule whose
+     * domain matches one of these (exact match or a subdomain) are dropped
+     * before scoring, so documented example addresses like `user@example.com`
+     * don't trip the guard. Matching is case-insensitive.
+     */
+    allowedDomains?: string[];
+}
 export declare class PrivacyScanner {
     private rules;
     private counterMap;
-    constructor(rules?: DetectionRule[]);
+    private allowedDomains;
+    constructor(rules?: DetectionRule[], options?: ScannerOptions);
+    /**
+     * Whether a finding should be suppressed by the domain allowlist. Only
+     * applies to email findings: an allowlisted domain matches the exact domain
+     * or any subdomain of it (e.g. `example.com` allows `a@example.com` and
+     * `a@mail.example.com`).
+     */
+    private isAllowlisted;
     /**
      * Scan text for sensitive data
      */

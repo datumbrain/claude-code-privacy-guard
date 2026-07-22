@@ -1,13 +1,10 @@
 {
   "enabled": true,
-  "strictMode": false,
   "allowedDomains": [
     "example.com",
     "localhost"
   ],
   "disabledRules": [],
-  "redactionStyle": "placeholder",
-  "autoMaskOnHighRisk": true,
   "externalRulesJsonPath": "./data/regex_list_1.json",
   "externalRulesMode": "coding-only"
 }

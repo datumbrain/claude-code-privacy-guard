@@ -3,7 +3,6 @@
   "version": "0.2.2",
   "type": "module",
   "description": "Privacy guard plugin for Claude Code - prevents PII and secrets from leaking into AI prompts",
-  "main": "dist/index.js",
   "bin": {
     "claude-code-privacy-guard": "dist/cli/index.js"
   },
@@ -24,13 +23,11 @@
     "security",
     "pii",
     "secrets",
-    "mcp",
     "ai-safety"
   ],
   "author": "Datum Brain",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
