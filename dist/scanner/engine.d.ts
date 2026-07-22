@@ -23,6 +23,12 @@ export interface ScannerOptions {
      * looks prone to catastrophic backtracking.
      */
     allowedPatterns?: string[];
+    /**
+     * Maximum number of characters scanned by the rule engine. Text beyond this
+     * length is appended to the output untouched (and unscanned). Defaults to
+     * {@link DEFAULT_MAX_SCAN_LENGTH}.
+     */
+    maxScanLength?: number;
 }
 export declare class PrivacyScanner {
     private rules;
@@ -30,6 +36,7 @@ export declare class PrivacyScanner {
     private allowedDomains;
     private allowedValues;
     private allowedPatterns;
+    private maxScanLength;
     constructor(rules?: DetectionRule[], options?: ScannerOptions);
     /**
      * Compile allowedPatterns entries, skipping (with a console warning) any

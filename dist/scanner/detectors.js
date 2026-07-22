@@ -3,6 +3,7 @@
  */
 import * as fs from 'fs';
 import { createHash } from 'crypto';
+import safeRegex from 'safe-regex2';
 /**
  * Built-in detection rules
  * Start with high-value patterns that catch the most dangerous leaks
@@ -373,6 +374,14 @@ export function loadExternalRulesFromJson(jsonPath, options = {}) {
                 }
             }
             catch {
+                continue;
+            }
+            // Reject patterns with catastrophic-backtracking shapes (nested/stacked
+            // quantifiers, e.g. `(x+x+)+y`) before they ever run against user input.
+            // A hang here would burn the hook's timeout on every prompt until the
+            // rule is manually found and removed from the data file.
+            if (!safeRegex(entry.regex)) {
+                console.warn(`Privacy Guard: skipping external rule "${entry.name}" - regex looks unsafe (possible catastrophic backtracking): ${entry.regex}`);
                 continue;
             }
             // Suffix with a short hash of the entry's own content (not its position)

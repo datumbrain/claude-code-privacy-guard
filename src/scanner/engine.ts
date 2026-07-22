@@ -6,6 +6,15 @@ import { DetectionRule, Finding, ScanResult, Severity } from '../types/findings.
 import { BUILTIN_RULES } from './detectors.js';
 import safeRegex from 'safe-regex2';
 
+// Default cap on how much of the input text is run through the rule engine.
+// Every enabled rule scans the full text, so cost scales with both text
+// length and rule count; bounding the former keeps a single very large
+// prompt from adding up to the hook's timeout even when every pattern is
+// individually safe. The remainder is passed through unscanned rather than
+// dropped, so an oversized prompt still reaches Claude instead of being
+// silently truncated.
+const DEFAULT_MAX_SCAN_LENGTH = 200_000;
+
 export interface ScannerOptions {
   /**
    * Email domains to allowlist. Findings from the `email-address` rule whose
@@ -29,6 +38,13 @@ export interface ScannerOptions {
    * looks prone to catastrophic backtracking.
    */
   allowedPatterns?: string[];
+
+  /**
+   * Maximum number of characters scanned by the rule engine. Text beyond this
+   * length is appended to the output untouched (and unscanned). Defaults to
+   * {@link DEFAULT_MAX_SCAN_LENGTH}.
+   */
+  maxScanLength?: number;
 }
 
 export class PrivacyScanner {
@@ -37,12 +53,14 @@ export class PrivacyScanner {
   private allowedDomains: string[];
   private allowedValues: Set<string>;
   private allowedPatterns: RegExp[];
+  private maxScanLength: number;
 
   constructor(rules: DetectionRule[] = BUILTIN_RULES, options: ScannerOptions = {}) {
     this.rules = rules.filter(r => r.enabled);
     this.allowedDomains = (options.allowedDomains ?? []).map(d => d.trim().toLowerCase()).filter(Boolean);
     this.allowedValues = new Set((options.allowedValues ?? []).filter(Boolean));
     this.allowedPatterns = this.compileAllowedPatterns(options.allowedPatterns ?? []);
+    this.maxScanLength = options.maxScanLength ?? DEFAULT_MAX_SCAN_LENGTH;
   }
 
   /**
@@ -110,9 +128,14 @@ export class PrivacyScanner {
     this.counterMap.clear();
     const findings: Finding[] = [];
 
+    // Only the first maxScanLength characters are run through the rule
+    // engine; anything beyond that is reattached untouched below.
+    const scannedText = text.length > this.maxScanLength ? text.slice(0, this.maxScanLength) : text;
+    const unscannedTail = text.slice(scannedText.length);
+
     // Run all enabled rules
     for (const rule of this.rules) {
-      const ruleFindings = this.detectWithRule(text, rule);
+      const ruleFindings = this.detectWithRule(scannedText, rule);
       findings.push(...ruleFindings);
     }
 
@@ -128,7 +151,7 @@ export class PrivacyScanner {
     const mergedFindings = this.mergeOverlappingFindings(kept);
 
     // Generate redacted text
-    const redactedText = this.redactText(text, mergedFindings);
+    const redactedText = this.redactText(scannedText, mergedFindings) + unscannedTail;
 
     // Calculate risk metrics
     const summary = this.calculateSummary(mergedFindings);
