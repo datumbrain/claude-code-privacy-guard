@@ -10,6 +10,8 @@ const DEFAULT_CONFIG: PrivacyGuardConfig = {
   enabled: true,
   allowedDomains: [],
   disabledRules: [],
+  allowedValues: [],
+  allowedPatterns: [],
 };
 
 export class ConfigLoader {

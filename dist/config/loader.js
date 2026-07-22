@@ -7,6 +7,8 @@ const DEFAULT_CONFIG = {
     enabled: true,
     allowedDomains: [],
     disabledRules: [],
+    allowedValues: [],
+    allowedPatterns: [],
 };
 export class ConfigLoader {
     config;

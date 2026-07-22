@@ -4,6 +4,8 @@
     "example.com",
     "localhost"
   ],
+  "allowedValues": [],
+  "allowedPatterns": [],
   "disabledRules": [],
   "externalRulesJsonPath": "./data/regex_list_1.json",
   "externalRulesMode": "coding-only"
