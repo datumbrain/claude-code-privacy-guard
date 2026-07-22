@@ -2,13 +2,23 @@
  * Core scanning engine
  */
 import { BUILTIN_RULES } from './detectors.js';
+// Default cap on how much of the input text is run through the rule engine.
+// Every enabled rule scans the full text, so cost scales with both text
+// length and rule count; bounding the former keeps a single very large
+// prompt from adding up to the hook's timeout even when every pattern is
+// individually safe. The remainder is passed through unscanned rather than
+// dropped, so an oversized prompt still reaches Claude instead of being
+// silently truncated.
+const DEFAULT_MAX_SCAN_LENGTH = 200_000;
 export class PrivacyScanner {
     rules;
     counterMap = new Map();
     allowedDomains;
+    maxScanLength;
     constructor(rules = BUILTIN_RULES, options = {}) {
         this.rules = rules.filter(r => r.enabled);
         this.allowedDomains = (options.allowedDomains ?? []).map(d => d.trim().toLowerCase()).filter(Boolean);
+        this.maxScanLength = options.maxScanLength ?? DEFAULT_MAX_SCAN_LENGTH;
     }
     /**
      * Whether a finding should be suppressed by the domain allowlist. Only
@@ -31,9 +41,13 @@ export class PrivacyScanner {
     scan(text) {
         this.counterMap.clear();
         const findings = [];
+        // Only the first maxScanLength characters are run through the rule
+        // engine; anything beyond that is reattached untouched below.
+        const scannedText = text.length > this.maxScanLength ? text.slice(0, this.maxScanLength) : text;
+        const unscannedTail = text.slice(scannedText.length);
         // Run all enabled rules
         for (const rule of this.rules) {
-            const ruleFindings = this.detectWithRule(text, rule);
+            const ruleFindings = this.detectWithRule(scannedText, rule);
             findings.push(...ruleFindings);
         }
         // Drop findings suppressed by the domain allowlist before any scoring so
@@ -45,7 +59,7 @@ export class PrivacyScanner {
         // Resolve overlaps so the same span is not redacted or counted twice
         const mergedFindings = this.mergeOverlappingFindings(kept);
         // Generate redacted text
-        const redactedText = this.redactText(text, mergedFindings);
+        const redactedText = this.redactText(scannedText, mergedFindings) + unscannedTail;
         // Calculate risk metrics
         const summary = this.calculateSummary(mergedFindings);
         const riskScore = this.calculateRiskScore(mergedFindings);
