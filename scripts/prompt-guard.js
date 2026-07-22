@@ -97,7 +97,11 @@ try {
   const disabledRules = new Set(config.disabledRules);
   const scanner = new PrivacyScanner(
     [...BUILTIN_RULES, ...externalRules].filter((rule) => !disabledRules.has(rule.id)),
-    { allowedDomains: config.allowedDomains }
+    {
+      allowedDomains: config.allowedDomains,
+      allowedValues: config.allowedValues,
+      allowedPatterns: config.allowedPatterns,
+    }
   );
 
   // Scan the prompt
@@ -125,7 +129,8 @@ try {
               `Risk Score: ${result.riskScore}/100\n` +
               `Secrets: ${result.summary.secret || 0} | PII: ${result.summary.pii || 0}\n\n` +
               `Please remove or anonymize sensitive data before proceeding.\n` +
-              `To disable a rule, add its ID to "disabledRules" in .privacy-guard.json.`
+              `To disable a rule, add its ID to "disabledRules" in .privacy-guard.json.\n` +
+              `To always allow this exact value, add it to "allowedValues" (or a matching regex to "allowedPatterns") in .privacy-guard.json.`
     };
 
     console.log(JSON.stringify(response, null, 2));

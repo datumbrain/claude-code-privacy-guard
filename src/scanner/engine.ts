@@ -4,6 +4,7 @@
 
 import { DetectionRule, Finding, ScanResult, Severity } from '../types/findings.js';
 import { BUILTIN_RULES } from './detectors.js';
+import safeRegex from 'safe-regex2';
 
 export interface ScannerOptions {
   /**
@@ -13,25 +14,87 @@ export interface ScannerOptions {
    * don't trip the guard. Matching is case-insensitive.
    */
   allowedDomains?: string[];
+
+  /**
+   * Exact finding values that are always allowed, regardless of which rule
+   * matched (e.g. a documented example key). Compared against the raw
+   * matched text, case-sensitively.
+   */
+  allowedValues?: string[];
+
+  /**
+   * Regex patterns; a finding whose matched text satisfies any of these is
+   * always allowed, regardless of which rule matched. Each pattern is vetted
+   * before use and skipped with a console warning if it fails to compile or
+   * looks prone to catastrophic backtracking.
+   */
+  allowedPatterns?: string[];
 }
 
 export class PrivacyScanner {
   private rules: DetectionRule[];
   private counterMap: Map<string, number> = new Map();
   private allowedDomains: string[];
+  private allowedValues: Set<string>;
+  private allowedPatterns: RegExp[];
 
   constructor(rules: DetectionRule[] = BUILTIN_RULES, options: ScannerOptions = {}) {
     this.rules = rules.filter(r => r.enabled);
     this.allowedDomains = (options.allowedDomains ?? []).map(d => d.trim().toLowerCase()).filter(Boolean);
+    this.allowedValues = new Set((options.allowedValues ?? []).filter(Boolean));
+    this.allowedPatterns = this.compileAllowedPatterns(options.allowedPatterns ?? []);
   }
 
   /**
-   * Whether a finding should be suppressed by the domain allowlist. Only
-   * applies to email findings: an allowlisted domain matches the exact domain
-   * or any subdomain of it (e.g. `example.com` allows `a@example.com` and
-   * `a@mail.example.com`).
+   * Compile allowedPatterns entries, skipping (with a console warning) any
+   * that fail to parse as a regex or look prone to catastrophic backtracking -
+   * these come from user config, but they still run against every scanned
+   * prompt, so an unsafe one deserves the same treatment as an external rule.
+   */
+  private compileAllowedPatterns(patterns: string[]): RegExp[] {
+    const compiled: RegExp[] = [];
+    for (const raw of patterns) {
+      if (!raw) continue;
+
+      let re: RegExp;
+      try {
+        re = new RegExp(raw);
+      } catch {
+        console.warn(`Privacy Guard: skipping allowedPatterns entry - invalid regex: ${raw}`);
+        continue;
+      }
+
+      if (!safeRegex(raw)) {
+        console.warn(
+          `Privacy Guard: skipping allowedPatterns entry - regex looks unsafe (possible catastrophic backtracking): ${raw}`
+        );
+        continue;
+      }
+
+      compiled.push(re);
+    }
+    return compiled;
+  }
+
+  /**
+   * Whether a finding should be suppressed by an allowlist: the email domain
+   * allowlist (email findings only), an exact-value allowlist, or a regex
+   * pattern allowlist (both of the latter two apply to any rule).
    */
   private isAllowlisted(finding: Finding): boolean {
+    if (this.isAllowlistedDomain(finding)) return true;
+    if (this.allowedValues.has(finding.match)) return true;
+    if (this.allowedPatterns.some(re => re.test(finding.match))) return true;
+    return false;
+  }
+
+  /**
+   * Whether a finding is suppressed by the domain allowlist. Only applies to
+   * email findings: an allowlisted domain matches the exact domain or any
+   * subdomain of it (e.g. `example.com` allows `a@example.com` and
+   * `a@mail.example.com`).
+   */
+  private isAllowlistedDomain(finding: Finding): boolean {
     if (this.allowedDomains.length === 0 || finding.ruleId !== 'email-address') {
       return false;
     }

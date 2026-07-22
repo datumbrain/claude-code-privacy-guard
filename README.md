@@ -102,6 +102,8 @@ file.
 | `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. |
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
 | `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Email domains to allow through the `email-address` rule. An entry matches the exact domain or any subdomain (e.g. `example.com` allows `a@example.com` and `a@mail.example.com`); matching is case-insensitive. |
+| `allowedValues` | `string[]` | `[]` | ✅ Implemented. Exact matched values to always allow, from any rule (e.g. a documented example key). Comparison is case-sensitive against the raw matched text. |
+| `allowedPatterns` | `string[]` | `[]` | ✅ Implemented. Regexes; a finding whose matched text satisfies any of these is always allowed, from any rule. Patterns that fail to compile or look prone to catastrophic backtracking are skipped with a console warning. |
 
 Example:
 
@@ -109,6 +111,8 @@ Example:
 {
   "enabled": true,
   "allowedDomains": ["example.com"],
+  "allowedValues": [],
+  "allowedPatterns": [],
   "disabledRules": [],
   "externalRulesJsonPath": "./data/regex_list_1.json",
   "externalRulesMode": "coding-only"

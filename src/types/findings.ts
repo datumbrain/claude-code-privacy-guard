@@ -60,4 +60,6 @@ export interface PrivacyGuardConfig {
   disabledRules: string[];
   externalRulesJsonPath?: string;
   externalRulesMode?: 'coding-only' | 'all';
+  allowedValues: string[];
+  allowedPatterns: string[];
 }

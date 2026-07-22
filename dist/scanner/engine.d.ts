@@ -10,19 +10,47 @@ export interface ScannerOptions {
      * don't trip the guard. Matching is case-insensitive.
      */
     allowedDomains?: string[];
+    /**
+     * Exact finding values that are always allowed, regardless of which rule
+     * matched (e.g. a documented example key). Compared against the raw
+     * matched text, case-sensitively.
+     */
+    allowedValues?: string[];
+    /**
+     * Regex patterns; a finding whose matched text satisfies any of these is
+     * always allowed, regardless of which rule matched. Each pattern is vetted
+     * before use and skipped with a console warning if it fails to compile or
+     * looks prone to catastrophic backtracking.
+     */
+    allowedPatterns?: string[];
 }
 export declare class PrivacyScanner {
     private rules;
     private counterMap;
     private allowedDomains;
+    private allowedValues;
+    private allowedPatterns;
     constructor(rules?: DetectionRule[], options?: ScannerOptions);
     /**
-     * Whether a finding should be suppressed by the domain allowlist. Only
-     * applies to email findings: an allowlisted domain matches the exact domain
-     * or any subdomain of it (e.g. `example.com` allows `a@example.com` and
-     * `a@mail.example.com`).
+     * Compile allowedPatterns entries, skipping (with a console warning) any
+     * that fail to parse as a regex or look prone to catastrophic backtracking -
+     * these come from user config, but they still run against every scanned
+     * prompt, so an unsafe one deserves the same treatment as an external rule.
+     */
+    private compileAllowedPatterns;
+    /**
+     * Whether a finding should be suppressed by an allowlist: the email domain
+     * allowlist (email findings only), an exact-value allowlist, or a regex
+     * pattern allowlist (both of the latter two apply to any rule).
      */
     private isAllowlisted;
+    /**
+     * Whether a finding is suppressed by the domain allowlist. Only applies to
+     * email findings: an allowlisted domain matches the exact domain or any
+     * subdomain of it (e.g. `example.com` allows `a@example.com` and
+     * `a@mail.example.com`).
+     */
+    private isAllowlistedDomain;
     /**
      * Scan text for sensitive data
      */
