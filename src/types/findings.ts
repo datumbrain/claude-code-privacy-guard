@@ -54,8 +54,11 @@ export interface ScanResult {
   };
 }
 
+export type PromptGuardMode = 'block' | 'redact' | 'warn';
+
 export interface PrivacyGuardConfig {
   enabled: boolean;
+  mode: PromptGuardMode;
   allowedDomains: string[];
   disabledRules: string[];
   externalRulesJsonPath?: string;

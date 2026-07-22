@@ -62,10 +62,10 @@ tracking status.
 1. You type a prompt in Claude Code
 2. Privacy Guard intercepts it via a `UserPromptSubmit` hook
 3. Scans for sensitive data using regex patterns
-4. **Blocks the prompt** if sensitive data is found
+4. Reacts according to the configured `mode` (see [Block, Redact, or Warn?](#block-redact-or-warn) below) - by default, **blocks the prompt** if sensitive data is found
 5. Shows you exactly what was detected
 
-Blocking relies on the `UserPromptSubmit` hook JSON protocol: the hook prints `{"decision": "block", "reason": "..."}` to stdout and exits with code `0`. (Exit code `0` is required for the JSON decision to be honored - a non-zero exit is treated as a non-blocking hook error, and the prompt would go through anyway.)
+Blocking relies on the `UserPromptSubmit` hook JSON protocol: the hook prints `{"decision": "block", "reason": "..."}` to stdout and exits with code `0`. (Exit code `0` is required for the JSON decision to be honored - a non-zero exit is treated as a non-blocking hook error, and the prompt would go through anyway.) A non-blocking warning uses `{"systemMessage": "..."}` instead, which surfaces the message without stopping the prompt.
 
 ## Example
 
@@ -100,6 +100,7 @@ file.
 | Option | Type | Default | Status |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` | ✅ Implemented. Set to `false` to disable the plugin entirely without uninstalling it. |
+| `mode` | `"block" \| "redact" \| "warn"` | `"block"` | ✅ Implemented. `"block"` rejects the prompt outright. `"redact"` also blocks (the hook API can't rewrite a submitted prompt) but the block reason includes a cleaned, copy-pasteable version of your prompt so you don't have to retype it. `"warn"` lets the prompt through unchanged and shows a non-blocking warning with what was found. See [Block, Redact, or Warn?](#block-redact-or-warn). |
 | `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see [Managing Rules](#managing-rules) below for how to discover and toggle IDs. |
 | `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. Patterns that look prone to catastrophic backtracking are skipped at load time (with a console warning) rather than risking a hang. |
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
@@ -168,9 +169,13 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the
 - ✅ Open source and fully auditable
 - ✅ The plugin only blocks - it doesn't store or log your sensitive data
 
-## Why Block Instead of Redact?
+## Block, Redact, or Warn?
 
-Claude Code's hook system doesn't support transforming prompts - only blocking or adding context. Blocking ensures sensitive data **never** reaches the AI, which is the safest approach.
+Claude Code's `UserPromptSubmit` hook API doesn't support rewriting or replacing the prompt that was submitted - a hook can only block it (`decision: "block"`) or allow it through, optionally with an added message. That constrains what each `mode` can actually do:
+
+- **`block`** (default) - rejects the prompt outright. Sensitive data **never** reaches the AI, which is the safest option.
+- **`redact`** - also blocks the original prompt (there's no way to swap in a cleaned one automatically), but the block reason includes a redacted copy of your prompt (secrets/PII replaced with placeholders like `<EMAIL_1>`) that you can copy, paste, and resubmit instead of manually finding and removing the sensitive parts yourself.
+- **`warn`** - lets the prompt through unchanged and shows a non-blocking warning listing what was detected. Use this if you want visibility without interruptions, e.g. while iterating on `allowedValues`/`allowedPatterns` for known false positives.
 
 ## Debugging
 

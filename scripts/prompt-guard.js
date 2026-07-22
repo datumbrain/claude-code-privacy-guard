@@ -16,6 +16,7 @@ import { readFileSync, mkdirSync, appendFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../dist/scanner/detectors.js';
 import { ConfigLoader } from '../dist/config/loader.js';
+import { buildHookResponse } from '../dist/hook/response.js';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -107,38 +108,21 @@ try {
   // Scan the prompt
   const result = scanner.scan(promptText);
 
-  // Mask a matched secret/PII value down to a short, non-recoverable hint,
-  // e.g. "sk-proj-abc123xyz1234567890" -> "sk-p…7890"
-  function maskMatch(value) {
-    if (value.length <= 8) return '*'.repeat(value.length);
-    return `${value.slice(0, 4)}…${value.slice(-4)}`;
-  }
+  // React to findings per the configured mode: "block" (default) rejects the
+  // prompt outright, "redact" also blocks (the hook API can't rewrite the
+  // prompt) but hands back a copy-pasteable cleaned version, and "warn"
+  // allows the prompt through with a visible systemMessage.
+  const mode = config.mode ?? 'block';
+  const response = buildHookResponse(result, mode);
 
-  // If sensitive data found, block the prompt
-  if (result.findings.length > 0) {
-    // Build detailed findings list
-    const findingsList = result.findings.map(f =>
-      `  - ${f.title} (${f.ruleId}): ${maskMatch(f.match)}`
-    ).join('\n');
-
-    // Return blocking decision as JSON
-    const response = {
-      decision: "block",
-      reason: `🛡️ Privacy Guard blocked this prompt\n\n` +
-              `Found ${result.findings.length} sensitive item(s):\n${findingsList}\n\n` +
-              `Risk Score: ${result.riskScore}/100\n` +
-              `Secrets: ${result.summary.secret || 0} | PII: ${result.summary.pii || 0}\n\n` +
-              `Please remove or anonymize sensitive data before proceeding.\n` +
-              `To disable a rule, add its ID to "disabledRules" in .privacy-guard.json.\n` +
-              `To always allow this exact value, add it to "allowedValues" (or a matching regex to "allowedPatterns") in .privacy-guard.json.`
-    };
-
+  if (response) {
     console.log(JSON.stringify(response, null, 2));
 
-    // Per the UserPromptSubmit hook protocol, a JSON "decision": "block" is
-    // only honored on exit 0. A non-zero exit here would be treated as a
-    // non-blocking error and the prompt would go through anyway.
-    finish('block', 0);
+    // Per the UserPromptSubmit hook protocol, a JSON "decision": "block" (or
+    // a "warn" mode's systemMessage-only payload) is only honored on exit 0.
+    // A non-zero exit here would be treated as a non-blocking error and the
+    // prompt would go through unannotated.
+    finish(response.decision === 'block' ? `${mode}-block` : 'warn', 0);
   }
 
   // No sensitive data, allow the prompt
