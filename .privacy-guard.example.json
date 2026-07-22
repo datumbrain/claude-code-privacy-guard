@@ -1,5 +1,6 @@
 {
   "enabled": true,
+  "mode": "block",
   "allowedDomains": [
     "example.com",
     "localhost"

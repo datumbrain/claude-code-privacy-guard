@@ -6,8 +6,11 @@ import { PrivacyGuardConfig } from '../types/findings.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
+const VALID_MODES = ['block', 'redact', 'warn'];
+
 const DEFAULT_CONFIG: PrivacyGuardConfig = {
   enabled: true,
+  mode: 'block',
   allowedDomains: [],
   disabledRules: [],
   allowedValues: [],
@@ -34,7 +37,12 @@ export class ConfigLoader {
       if (fs.existsSync(configPath)) {
         const fileContent = fs.readFileSync(configPath, 'utf-8');
         const userConfig = JSON.parse(fileContent);
-        return { ...DEFAULT_CONFIG, ...userConfig };
+        const merged = { ...DEFAULT_CONFIG, ...userConfig };
+        if (!VALID_MODES.includes(merged.mode)) {
+          console.warn(`Privacy Guard: invalid "mode" value "${merged.mode}" in config, falling back to "block"`);
+          merged.mode = 'block';
+        }
+        return merged;
       }
     } catch (error) {
       console.error('Failed to load config, using defaults:', error);
