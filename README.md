@@ -6,6 +6,8 @@
 
 A privacy-first plugin for Claude Code that scans prompts for sensitive data and **blocks** them before they reach the AI.
 
+![Claude Code Privacy Guard Screenshot](./assets/claude-code-privacy-guard-ss.png)
+
 ## Features
 
 - ✅ **Blocks prompts** containing sensitive data before they're sent to Claude
