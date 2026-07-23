@@ -71,6 +71,15 @@ node -e '
   fs.writeFileSync(path, JSON.stringify(plugin, null, 2) + "\n");
 ' "$new_version"
 
+echo "Syncing .claude-plugin/marketplace.json version..."
+node -e '
+  const fs = require("fs");
+  const path = ".claude-plugin/marketplace.json";
+  const marketplace = JSON.parse(fs.readFileSync(path, "utf8"));
+  for (const plugin of marketplace.plugins) plugin.version = process.argv[1];
+  fs.writeFileSync(path, JSON.stringify(marketplace, null, 2) + "\n");
+' "$new_version"
+
 echo "Creating release commit..."
 git add -A
 git commit -m "release: v${new_version}"
