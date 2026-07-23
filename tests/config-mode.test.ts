@@ -1,4 +1,4 @@
-import { describe, expect, test, afterEach } from '@jest/globals';
+import { describe, expect, test, afterEach, jest } from '@jest/globals';
 import { ConfigLoader } from '../src/config/loader';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -41,5 +41,38 @@ describe('ConfigLoader mode', () => {
     const file = writeConfig({ mode: 'delete-everything' });
     const config = new ConfigLoader(file).getConfig();
     expect(config.mode).toBe('block');
+  });
+});
+
+describe('ConfigLoader unknown keys', () => {
+  test('warns on an unrecognized key (e.g. a typo)', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const file = writeConfig({ alowedValues: ['oops'] });
+      new ConfigLoader(file).getConfig();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown config key "alowedValues"'));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('does not warn when every key is recognized', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const file = writeConfig({
+        enabled: true,
+        mode: 'warn',
+        allowedDomains: ['example.com'],
+        disabledRules: ['some-rule'],
+        allowedValues: ['ok'],
+        allowedPatterns: ['^ok$'],
+        externalRulesJsonPath: './rules.json',
+        externalRulesMode: 'all',
+      });
+      new ConfigLoader(file).getConfig();
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
