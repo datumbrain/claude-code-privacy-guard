@@ -1,3 +1,9 @@
+# Force LF line endings on checkout regardless of platform. Without this,
+# Windows checkouts convert committed LF to CRLF via core.autocrlf, which
+# would make the CI "dist/ matches src/" check below fail spuriously on
+# windows-latest (tsc always emits LF) even when nothing actually changed.
+* text=auto eol=lf
+
 # dist/ is compiled output from src/ (tsc). It must stay committed because the
 # plugin is installed straight from this repo with no build step, but it is a
 # generated artifact and should never be reviewed or hand-edited.
