@@ -25,6 +25,19 @@ export function writeDisabledRules(configPath, disabledRules) {
     writeConfigKeys(configPath, { disabledRules: [...disabledRules].sort() });
 }
 /**
+ * Writes the top-level toggles (enabled, mode, external rules source) the
+ * settings panel owns. An empty externalRulesJsonPath means "use the
+ * built-in default list", so the key is removed rather than written as "".
+ */
+export function writeSettings(configPath, settings) {
+    writeConfigKeys(configPath, {
+        enabled: settings.enabled,
+        mode: settings.mode,
+        externalRulesMode: settings.externalRulesMode,
+        externalRulesJsonPath: settings.externalRulesJsonPath || undefined,
+    });
+}
+/**
  * Merges the given keys into the config file, preserving every other key and
  * the sort order the UI sends. Allowlist entries are written in the order the
  * user added them (unlike disabledRules, which is sorted for a stable diff),

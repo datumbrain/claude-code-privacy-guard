@@ -15,6 +15,17 @@ export declare function resolveConfigPath(startDir?: string): string;
 export declare function isGlobalConfigPath(configPath: string): boolean;
 export declare function writeDisabledRules(configPath: string, disabledRules: string[]): void;
 /**
+ * Writes the top-level toggles (enabled, mode, external rules source) the
+ * settings panel owns. An empty externalRulesJsonPath means "use the
+ * built-in default list", so the key is removed rather than written as "".
+ */
+export declare function writeSettings(configPath: string, settings: {
+    enabled: boolean;
+    mode: string;
+    externalRulesMode: string;
+    externalRulesJsonPath: string;
+}): void;
+/**
  * Merges the given keys into the config file, preserving every other key and
  * the sort order the UI sends. Allowlist entries are written in the order the
  * user added them (unlike disabledRules, which is sorted for a stable diff),

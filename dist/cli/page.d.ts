@@ -16,4 +16,10 @@ export interface Allowlists {
     allowedValues: string[];
     allowedPatterns: string[];
 }
-export declare function renderPage(rules: RuleRow[], allowlists: Allowlists, token: string, configPath: string, isGlobal: boolean): string;
+export interface Settings {
+    enabled: boolean;
+    mode: string;
+    externalRulesMode: string;
+    externalRulesJsonPath: string;
+}
+export declare function renderPage(rules: RuleRow[], allowlists: Allowlists, settings: Settings, token: string, configPath: string, isGlobal: boolean): string;

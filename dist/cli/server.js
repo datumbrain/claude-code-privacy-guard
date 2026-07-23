@@ -12,8 +12,8 @@ import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../scanner/detectors.js';
 import { ConfigLoader } from '../config/loader.js';
 import { renderPage } from './page.js';
-import { resolveConfigPath, isGlobalConfigPath, writeDisabledRules, writeAllowlists } from './config-writer.js';
-import { parseAllowlists, validateAllowedPattern } from './validate.js';
+import { resolveConfigPath, isGlobalConfigPath, writeDisabledRules, writeAllowlists, writeSettings } from './config-writer.js';
+import { parseAllowlists, validateAllowedPattern, parseSettings } from './validate.js';
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 export async function startRulesServer() {
     const configPath = resolveConfigPath();
@@ -39,13 +39,19 @@ export async function startRulesServer() {
         allowedValues: [...config.allowedValues],
         allowedPatterns: [...config.allowedPatterns],
     };
+    const settings = {
+        enabled: config.enabled,
+        mode: config.mode,
+        externalRulesMode: config.externalRulesMode ?? 'coding-only',
+        externalRulesJsonPath: config.externalRulesJsonPath ?? '',
+    };
     const logoPath = fileURLToPath(new URL('../../assets/claude-code-privacy-guard-logo.png', import.meta.url));
     const token = randomBytes(16).toString('hex');
     const server = http.createServer((req, res) => {
         resetInactivityTimer();
         if (req.method === 'GET' && req.url === '/') {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(renderPage(rules, allowlists, token, configPath, isGlobalConfigPath(configPath)));
+            res.end(renderPage(rules, allowlists, settings, token, configPath, isGlobalConfigPath(configPath)));
             return;
         }
         if (req.method === 'GET' && req.url === '/logo.png') {
@@ -89,6 +95,24 @@ export async function startRulesServer() {
                     rule.disabled = disabledRules.has(rule.id);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ ok: true }));
+            });
+            return;
+        }
+        if (req.method === 'POST' && req.url === '/save-settings') {
+            readJsonBody(req, res, (parsed) => {
+                if (parsed.token !== token) {
+                    res.writeHead(403, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ ok: false, error: 'Invalid token' }));
+                    return;
+                }
+                const next = parseSettings(parsed);
+                writeSettings(configPath, next);
+                settings.enabled = next.enabled;
+                settings.mode = next.mode;
+                settings.externalRulesMode = next.externalRulesMode;
+                settings.externalRulesJsonPath = next.externalRulesJsonPath;
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, settings: next }));
             });
             return;
         }
