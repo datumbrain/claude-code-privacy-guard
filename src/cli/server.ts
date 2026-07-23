@@ -14,7 +14,8 @@ import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../scanner/detectors.js';
 import { ConfigLoader } from '../config/loader.js';
 import { renderPage, RuleRow } from './page.js';
-import { resolveConfigPath, isGlobalConfigPath, writeDisabledRules } from './config-writer.js';
+import { resolveConfigPath, isGlobalConfigPath, writeDisabledRules, writeAllowlists } from './config-writer.js';
+import { parseAllowlists, validateAllowedPattern, AllowlistPayload } from './validate.js';
 
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -40,6 +41,12 @@ export async function startRulesServer(): Promise<void> {
     disabled: disabledRules.has(rule.id),
   }));
 
+  const allowlists: AllowlistPayload = {
+    allowedDomains: [...config.allowedDomains],
+    allowedValues: [...config.allowedValues],
+    allowedPatterns: [...config.allowedPatterns],
+  };
+
   const logoPath = fileURLToPath(new URL('../../assets/claude-code-privacy-guard-logo.png', import.meta.url));
 
   const token = randomBytes(16).toString('hex');
@@ -49,7 +56,7 @@ export async function startRulesServer(): Promise<void> {
 
     if (req.method === 'GET' && req.url === '/') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderPage(rules, token, configPath, isGlobalConfigPath(configPath)));
+      res.end(renderPage(rules, allowlists, token, configPath, isGlobalConfigPath(configPath)));
       return;
     }
 
@@ -66,38 +73,57 @@ export async function startRulesServer(): Promise<void> {
       return;
     }
 
-    if (req.method === 'POST' && req.url === '/save') {
-      let body = '';
-      req.on('data', (chunk) => {
-        body += chunk;
-        if (body.length > 1_000_000) req.destroy();
-      });
-      req.on('end', () => {
-        try {
-          if (req.headers['content-type'] !== 'application/json') {
-            throw new Error('Expected application/json');
-          }
-          const parsed = JSON.parse(body) as { token?: string; disabledRules?: unknown };
-          if (parsed.token !== token) {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ ok: false, error: 'Invalid token' }));
-            return;
-          }
-          if (!Array.isArray(parsed.disabledRules) || !parsed.disabledRules.every((id) => typeof id === 'string')) {
-            throw new Error('disabledRules must be a string array');
-          }
+    if (req.method === 'POST' && (req.url === '/save' || req.url === '/save-allowlists')) {
+      const isAllowlistSave = req.url === '/save-allowlists';
+      readJsonBody(req, res, (parsed) => {
+        if (parsed.token !== token) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Invalid token' }));
+          return;
+        }
 
-          writeDisabledRules(configPath, parsed.disabledRules as string[]);
-          disabledRules.clear();
-          for (const id of parsed.disabledRules as string[]) disabledRules.add(id);
-          for (const rule of rules) rule.disabled = disabledRules.has(rule.id);
+        if (isAllowlistSave) {
+          const next = parseAllowlists(parsed);
+          writeAllowlists(configPath, next);
+          allowlists.allowedDomains = next.allowedDomains;
+          allowlists.allowedValues = next.allowedValues;
+          allowlists.allowedPatterns = next.allowedPatterns;
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true }));
-        } catch (error) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, error: (error as Error).message }));
+          res.end(JSON.stringify({ ok: true, allowlists: next }));
+          return;
         }
+
+        if (!Array.isArray(parsed.disabledRules) || !parsed.disabledRules.every((id) => typeof id === 'string')) {
+          throw new Error('disabledRules must be a string array');
+        }
+
+        writeDisabledRules(configPath, parsed.disabledRules as string[]);
+        disabledRules.clear();
+        for (const id of parsed.disabledRules as string[]) disabledRules.add(id);
+        for (const rule of rules) rule.disabled = disabledRules.has(rule.id);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      });
+      return;
+    }
+
+    // Live feedback for the regex field so a bad pattern is caught while
+    // typing, using the exact check the scanner applies at load time.
+    if (req.method === 'POST' && req.url === '/validate-pattern') {
+      readJsonBody(req, res, (parsed) => {
+        if (parsed.token !== token) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Invalid token' }));
+          return;
+        }
+        if (typeof parsed.pattern !== 'string') {
+          throw new Error('pattern must be a string');
+        }
+        const error = validateAllowedPattern(parsed.pattern);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, valid: error === null, error }));
       });
       return;
     }
@@ -122,11 +148,42 @@ export async function startRulesServer(): Promise<void> {
   console.log(`Privacy Guard rules editor running at ${url}`);
   console.log(`Config file: ${configPath}${isGlobalConfigPath(configPath) ? ' (global - applies to every project unless it has its own .privacy-guard.json)' : ' (project-level override)'}`);
   console.log(`Loaded ${rules.length} rules (${disabledRules.size} currently disabled).`);
+  console.log(
+    `Allowlists: ${allowlists.allowedDomains.length} domains, ${allowlists.allowedValues.length} values, ${allowlists.allowedPatterns.length} patterns.`
+  );
   console.log('Press Ctrl+C to stop (the server also exits after 10 minutes of inactivity).');
 
   await openInBrowser(url);
 
   await new Promise<void>((resolve) => server.on('close', resolve));
+}
+
+/**
+ * Collects a JSON request body (capped) and hands the parsed object to the
+ * handler, turning any thrown validation error into a 400 so each route can
+ * just throw with a message.
+ */
+function readJsonBody(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  handler: (parsed: Record<string, unknown>) => void
+): void {
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk;
+    if (body.length > 1_000_000) req.destroy();
+  });
+  req.on('end', () => {
+    try {
+      if (req.headers['content-type'] !== 'application/json') {
+        throw new Error('Expected application/json');
+      }
+      handler(JSON.parse(body) as Record<string, unknown>);
+    } catch (error) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: (error as Error).message }));
+    }
+  });
 }
 
 async function openInBrowser(url: string): Promise<void> {

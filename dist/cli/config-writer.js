@@ -1,6 +1,7 @@
 /**
- * Reads and writes the disabledRules array in .privacy-guard.json without
- * disturbing any other keys the user has set.
+ * Reads and writes the keys the rules-picker UI owns (disabledRules and the
+ * three allowlists) in .privacy-guard.json without disturbing any other keys
+ * the user has set.
  */
 import * as fs from 'fs';
 import * as os from 'os';
@@ -21,6 +22,22 @@ export function isGlobalConfigPath(configPath) {
     return path.dirname(configPath) === os.homedir();
 }
 export function writeDisabledRules(configPath, disabledRules) {
+    writeConfigKeys(configPath, { disabledRules: [...disabledRules].sort() });
+}
+/**
+ * Merges the given keys into the config file, preserving every other key and
+ * the sort order the UI sends. Allowlist entries are written in the order the
+ * user added them (unlike disabledRules, which is sorted for a stable diff),
+ * since the list is hand-curated and order carries intent.
+ */
+export function writeAllowlists(configPath, allowlists) {
+    writeConfigKeys(configPath, {
+        allowedDomains: allowlists.allowedDomains,
+        allowedValues: allowlists.allowedValues,
+        allowedPatterns: allowlists.allowedPatterns,
+    });
+}
+export function writeConfigKeys(configPath, keys) {
     let existing = {};
     if (fs.existsSync(configPath)) {
         try {
@@ -31,6 +48,6 @@ export function writeDisabledRules(configPath, disabledRules) {
             throw new Error(`Could not parse existing config at ${configPath}; fix or remove it before saving.`);
         }
     }
-    const updated = { ...existing, disabledRules: [...disabledRules].sort() };
+    const updated = { ...existing, ...keys };
     fs.writeFileSync(configPath, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
 }

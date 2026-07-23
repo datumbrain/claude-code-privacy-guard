@@ -11,4 +11,9 @@ export interface RuleRow {
     source: 'builtin' | 'external';
     disabled: boolean;
 }
-export declare function renderPage(rules: RuleRow[], token: string, configPath: string, isGlobal: boolean): string;
+export interface Allowlists {
+    allowedDomains: string[];
+    allowedValues: string[];
+    allowedPatterns: string[];
+}
+export declare function renderPage(rules: RuleRow[], allowlists: Allowlists, token: string, configPath: string, isGlobal: boolean): string;
