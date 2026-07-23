@@ -39,15 +39,25 @@ Once restarted, the plugin will automatically scan all prompts before they reach
 
 ✅ **Secrets**
 - OpenAI API keys (`sk-...`, `sk-proj-...`)
+- Anthropic, OpenRouter, Google AI, Groq, and Perplexity API keys
+- Hugging Face API tokens
 - AWS credentials
-- GitHub tokens (classic and fine-grained PATs)
-- GitLab tokens (personal access, deploy, runner, pipeline trigger, service account)
+- GCP service account keys
 - Azure client secrets (Microsoft Entra ID)
+- GitHub tokens (classic and fine-grained PATs)
+- GitLab tokens (personal access, deploy, runner, pipeline trigger, service account, CI job)
+- Slack tokens
 - Stripe keys
+- Twilio API key SIDs and account SIDs
+- SendGrid API keys
+- npm access tokens
+- Database connection strings with inline credentials (postgres/mysql/mongodb/redis/amqp)
 - JWT tokens
 - Bearer tokens
-- SSH private keys
-- Generic API key patterns
+- SSH and PEM private keys
+- Generic API key/secret/token assignments in code
+
+Plus a bundled external ruleset (`data/regex_list_1.json`, filterable via `externalRulesMode`) covering many more service-specific tokens - see [Managing Rules](#managing-rules) to browse the full list.
 
 ✅ **Personal Information (PII)**
 - Email addresses
@@ -132,8 +142,9 @@ To manage rules and allowlists without hand-editing the config, run:
 npx claude-code-privacy-guard rules
 ```
 
-This starts a local-only web UI (bound to `127.0.0.1`, never exposed to your network) with two tabs:
+This starts a local-only web UI (bound to `127.0.0.1`, never exposed to your network) with three tabs:
 
+- **Settings** - toggle `enabled`, pick the `mode` (block/redact/warn, with a short description of each), choose `externalRulesMode` (coding-only vs all), and set `externalRulesJsonPath`. Path changes only take effect the next time you run the rules editor.
 - **Rules** - every rule with its ID, title, severity, and category. Unchecking one saves it to `disabledRules`.
 - **Allowlists** - add/remove entries for `allowedDomains`, `allowedValues`, and `allowedPatterns`. Regexes are checked for validity and catastrophic backtracking as you type, using the same `safe-regex2` check the scanner applies at load time - so a pattern the UI accepts is one the scanner will actually use, and a rejected pattern never reaches your config.
 
@@ -164,7 +175,7 @@ make release
 ```
 This runs an interactive flow that asks for version bump, confirms release actions, updates `CHANGELOG.md`, runs build/test, creates commit+tag, and optionally pushes/publishes.
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the `dist/` rebuild requirement, and [docs/](./docs/) for detailed architecture and integration guides.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the `dist/` rebuild requirement.
 
 ## Privacy & Security
 
