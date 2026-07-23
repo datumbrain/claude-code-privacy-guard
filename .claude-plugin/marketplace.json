@@ -9,7 +9,7 @@
       "name": "claude-code-privacy-guard",
       "source": "./",
       "description": "🛡️ Prevent secrets and PII from being accidentally shared with Claude Code.",
-      "version": "0.2.9",
+      "version": "0.3.0",
       "repository": "https://github.com/datumbrain/claude-code-privacy-guard"
     }
   ]
