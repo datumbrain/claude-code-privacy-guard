@@ -5,6 +5,33 @@
  * would be silently dropped should never make it into the config file.
  */
 import safeRegex from 'safe-regex2';
+const VALID_MODES = ['block', 'redact', 'warn'];
+const VALID_EXTERNAL_RULES_MODES = ['coding-only', 'all'];
+/**
+ * Validates and normalizes the /save-settings payload. Throws on anything
+ * invalid so a failed save leaves the existing config untouched.
+ */
+export function parseSettings(input) {
+    if (typeof input.enabled !== 'boolean') {
+        throw new Error('enabled must be a boolean');
+    }
+    if (typeof input.mode !== 'string' || !VALID_MODES.includes(input.mode)) {
+        throw new Error(`mode must be one of ${VALID_MODES.join(', ')}`);
+    }
+    if (typeof input.externalRulesMode !== 'string' ||
+        !VALID_EXTERNAL_RULES_MODES.includes(input.externalRulesMode)) {
+        throw new Error(`externalRulesMode must be one of ${VALID_EXTERNAL_RULES_MODES.join(', ')}`);
+    }
+    if (typeof input.externalRulesJsonPath !== 'string') {
+        throw new Error('externalRulesJsonPath must be a string');
+    }
+    return {
+        enabled: input.enabled,
+        mode: input.mode,
+        externalRulesMode: input.externalRulesMode,
+        externalRulesJsonPath: input.externalRulesJsonPath.trim(),
+    };
+}
 /**
  * Returns an error message for a single allowedPatterns entry, or null when
  * it's fine. Mirrors ScannerEngine.compileAllowedPatterns so the UI accepts

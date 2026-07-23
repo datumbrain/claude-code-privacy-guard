@@ -3,9 +3,10 @@
  * logo, which the server serves from the local-only /logo.png route - no
  * external CDNs or network calls.
  */
-export function renderPage(rules, allowlists, token, configPath, isGlobal) {
+export function renderPage(rules, allowlists, settings, token, configPath, isGlobal) {
     const rulesJson = JSON.stringify(rules).replace(/</g, '\\u003c');
     const allowlistsJson = JSON.stringify(allowlists).replace(/</g, '\\u003c');
+    const settingsJson = JSON.stringify(settings).replace(/</g, '\\u003c');
     const scopeLabel = isGlobal
         ? 'Global config - applies to every project unless it has its own .privacy-guard.json'
         : 'Project-level override';
@@ -58,6 +59,16 @@ export function renderPage(rules, allowlists, token, configPath, isGlobal) {
   .adder button:hover:not(:disabled) { background: #8881; }
   .adder button:disabled { opacity: 0.45; cursor: not-allowed; }
   .field-error { flex-basis: 100%; font-size: 0.8rem; color: #dc2626; }
+  .setting { margin-bottom: 1.5rem; max-width: 560px; }
+  .setting label.title { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+  .setting .hint { font-size: 0.8rem; color: #888; margin: 0.15rem 0 0.5rem; }
+  .setting select, .setting input[type="text"] { padding: 0.45rem 0.65rem; border-radius: 6px; border: 1px solid #8888; font-size: 0.9rem; font: inherit; background: none; color: inherit; min-width: 220px; }
+  .setting input[type="text"] { width: 100%; font-family: ui-monospace, monospace; }
+  .setting-toggle { display: flex; align-items: center; gap: 0.6rem; }
+  .setting-toggle label.title { margin-bottom: 0; }
+  .mode-options { display: flex; flex-direction: column; gap: 0.4rem; }
+  .mode-options label { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-weight: normal; }
+  .mode-options .mode-desc { color: #888; font-size: 0.8rem; }
 </style>
 </head>
 <body>
@@ -68,12 +79,46 @@ export function renderPage(rules, allowlists, token, configPath, isGlobal) {
   <div class="subtitle">${escapeHtml(scopeLabel)}<br>Config: <code>${escapeHtml(configPath)}</code> - every change saves automatically</div>
 
   <div class="tabs" role="tablist">
-    <button role="tab" id="tab-rules" aria-selected="true" aria-controls="panel-rules">Rules</button>
+    <button role="tab" id="tab-settings" aria-selected="true" aria-controls="panel-settings">Settings</button>
+    <button role="tab" id="tab-rules" aria-selected="false" aria-controls="panel-rules">Rules</button>
     <button role="tab" id="tab-allowlists" aria-selected="false" aria-controls="panel-allowlists">Allowlists</button>
     <span id="status"></span>
   </div>
 
-  <div class="panel" id="panel-rules" role="tabpanel">
+  <div class="panel" id="panel-settings" role="tabpanel">
+    <div class="setting setting-toggle">
+      <input type="checkbox" id="setting-enabled">
+      <label class="title" for="setting-enabled">Privacy Guard enabled</label>
+    </div>
+    <p class="hint" style="margin-top: -1rem;">Turns scanning off entirely for this config's scope. Rule and allowlist changes below still save, they just stop applying.</p>
+
+    <div class="setting">
+      <span class="title">Mode</span>
+      <p class="hint">What happens when a finding is detected in a prompt.</p>
+      <div class="mode-options">
+        <label><input type="radio" name="mode" value="block"> <span>Block <span class="mode-desc">- stop the prompt from reaching Claude; you must remove or allowlist the finding first.</span></span></label>
+        <label><input type="radio" name="mode" value="redact"> <span>Redact <span class="mode-desc">- automatically replace findings with placeholders and let the prompt through.</span></span></label>
+        <label><input type="radio" name="mode" value="warn"> <span>Warn <span class="mode-desc">- let the prompt through unchanged, just report what was found.</span></span></label>
+      </div>
+    </div>
+
+    <div class="setting">
+      <label class="title" for="setting-external-mode">External rule set</label>
+      <p class="hint">The bundled regex list (data/regex_list_1.json) ships far more patterns than coding secrets. "Coding-only" keeps just the ones relevant to source code and shell input; "All" also enables the broader PII/compliance-oriented patterns.</p>
+      <select id="setting-external-mode">
+        <option value="coding-only">Coding-only</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+
+    <div class="setting">
+      <label class="title" for="setting-external-path">External rules JSON path</label>
+      <p class="hint">Absolute path to a custom regex list, in place of the bundled default. Leave blank to use the built-in list. Changing this only affects the rule list shown here after restarting the editor.</p>
+      <input type="text" id="setting-external-path" placeholder="(bundled default)">
+    </div>
+  </div>
+
+  <div class="panel" id="panel-rules" role="tabpanel" hidden>
     <div class="toolbar">
       <input type="search" id="search" placeholder="Filter by id, title, or category...">
     </div>
@@ -120,6 +165,7 @@ export function renderPage(rules, allowlists, token, configPath, isGlobal) {
 <script>
 const RULES = ${rulesJson};
 const ALLOWLISTS = ${allowlistsJson};
+const SETTINGS = ${settingsJson};
 const TOKEN = ${JSON.stringify(token)};
 const state = new Map(RULES.map(r => [r.id, !r.disabled]));
 
@@ -223,6 +269,63 @@ for (const tab of document.querySelectorAll('[role="tab"]')) {
       document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
     }
   });
+}
+
+// ---- Settings ----
+
+const enabledCb = document.getElementById('setting-enabled');
+const externalModeSel = document.getElementById('setting-external-mode');
+const externalPathInput = document.getElementById('setting-external-path');
+
+enabledCb.checked = SETTINGS.enabled;
+externalModeSel.value = SETTINGS.externalRulesMode;
+externalPathInput.value = SETTINGS.externalRulesJsonPath;
+for (const radio of document.querySelectorAll('input[name="mode"]')) {
+  radio.checked = radio.value === SETTINGS.mode;
+}
+
+let settingsSaveTimer = null;
+function scheduleSaveSettings() {
+  clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = setTimeout(saveSettings, 300);
+}
+
+enabledCb.addEventListener('change', scheduleSaveSettings);
+externalModeSel.addEventListener('change', scheduleSaveSettings);
+externalPathInput.addEventListener('input', scheduleSaveSettings);
+for (const radio of document.querySelectorAll('input[name="mode"]')) {
+  radio.addEventListener('change', scheduleSaveSettings);
+}
+
+let settingsSaveInFlight = false;
+let settingsSaveAgain = false;
+
+async function saveSettings() {
+  if (settingsSaveInFlight) {
+    settingsSaveAgain = true;
+    return;
+  }
+  settingsSaveInFlight = true;
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  const payload = {
+    enabled: enabledCb.checked,
+    mode,
+    externalRulesMode: externalModeSel.value,
+    externalRulesJsonPath: externalPathInput.value.trim(),
+  };
+  setStatus('Saving...', '');
+  try {
+    await postJson('/save-settings', payload);
+    setStatus('Saved settings.', 'ok');
+  } catch (err) {
+    setStatus('Error: ' + err.message, 'err');
+  } finally {
+    settingsSaveInFlight = false;
+    if (settingsSaveAgain) {
+      settingsSaveAgain = false;
+      saveSettings();
+    }
+  }
 }
 
 // ---- Allowlists ----

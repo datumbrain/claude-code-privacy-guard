@@ -6,11 +6,56 @@
  */
 
 import safeRegex from 'safe-regex2';
+import { PromptGuardMode } from '../types/findings.js';
 
 export interface AllowlistPayload {
   allowedDomains: string[];
   allowedValues: string[];
   allowedPatterns: string[];
+}
+
+const VALID_MODES: PromptGuardMode[] = ['block', 'redact', 'warn'];
+const VALID_EXTERNAL_RULES_MODES = ['coding-only', 'all'];
+
+export interface SettingsPayload {
+  enabled: boolean;
+  mode: PromptGuardMode;
+  externalRulesMode: 'coding-only' | 'all';
+  externalRulesJsonPath: string;
+}
+
+/**
+ * Validates and normalizes the /save-settings payload. Throws on anything
+ * invalid so a failed save leaves the existing config untouched.
+ */
+export function parseSettings(input: {
+  enabled?: unknown;
+  mode?: unknown;
+  externalRulesMode?: unknown;
+  externalRulesJsonPath?: unknown;
+}): SettingsPayload {
+  if (typeof input.enabled !== 'boolean') {
+    throw new Error('enabled must be a boolean');
+  }
+  if (typeof input.mode !== 'string' || !VALID_MODES.includes(input.mode as PromptGuardMode)) {
+    throw new Error(`mode must be one of ${VALID_MODES.join(', ')}`);
+  }
+  if (
+    typeof input.externalRulesMode !== 'string' ||
+    !VALID_EXTERNAL_RULES_MODES.includes(input.externalRulesMode)
+  ) {
+    throw new Error(`externalRulesMode must be one of ${VALID_EXTERNAL_RULES_MODES.join(', ')}`);
+  }
+  if (typeof input.externalRulesJsonPath !== 'string') {
+    throw new Error('externalRulesJsonPath must be a string');
+  }
+
+  return {
+    enabled: input.enabled,
+    mode: input.mode as PromptGuardMode,
+    externalRulesMode: input.externalRulesMode as 'coding-only' | 'all',
+    externalRulesJsonPath: input.externalRulesJsonPath.trim(),
+  };
 }
 
 /**
