@@ -97,7 +97,7 @@ export function renderPage(rules, allowlists, settings, token, configPath, isGlo
       <p class="hint">What happens when a finding is detected in a prompt.</p>
       <div class="mode-options">
         <label><input type="radio" name="mode" value="block"> <span>Block <span class="mode-desc">- stop the prompt from reaching Claude; you must remove or allowlist the finding first.</span></span></label>
-        <label><input type="radio" name="mode" value="redact"> <span>Redact <span class="mode-desc">- automatically replace findings with placeholders and let the prompt through.</span></span></label>
+        <label><input type="radio" name="mode" value="redact"> <span>Redact <span class="mode-desc">- still blocks the prompt (the hook API can't resubmit it for you), but the block message includes a cleaned, copy-pasteable version with findings replaced by placeholders.</span></span></label>
         <label><input type="radio" name="mode" value="warn"> <span>Warn <span class="mode-desc">- let the prompt through unchanged, just report what was found.</span></span></label>
       </div>
     </div>
