@@ -15,7 +15,7 @@ A privacy-first plugin for Claude Code that scans prompts for sensitive data and
 - ✅ **Works locally** - all scanning happens on your machine
 - ✅ **Zero configuration** - works out of the box
 - ✅ **Detailed reporting** - shows exactly what was detected
-- ✅ **Toggle individual rules** - via `disabledRules` or `npx claude-code-privacy-guard rules` for a local web UI
+- ✅ **Toggle rules and manage allowlists** - by hand in `.privacy-guard.json`, or via `npx claude-code-privacy-guard rules` for a local web UI
 
 ## Installation
 
@@ -126,13 +126,18 @@ Example:
 
 Every detection rule - built-in and external - has a stable `id` (e.g. `email-address`, `openai-api-key`, `external-slack-api-token`). Blocked prompts now show each finding's ID directly, so you always know what to put in `disabledRules`.
 
-To see and toggle every rule at once, run:
+To manage rules and allowlists without hand-editing the config, run:
 
 ```bash
 npx claude-code-privacy-guard rules
 ```
 
-This starts a local-only web UI (bound to `127.0.0.1`, never exposed to your network) listing every rule with its ID, title, severity, and category. Toggling a rule saves automatically to `disabledRules`.
+This starts a local-only web UI (bound to `127.0.0.1`, never exposed to your network) with two tabs:
+
+- **Rules** - every rule with its ID, title, severity, and category. Unchecking one saves it to `disabledRules`.
+- **Allowlists** - add/remove entries for `allowedDomains`, `allowedValues`, and `allowedPatterns`. Regexes are checked for validity and catastrophic backtracking as you type, using the same `safe-regex2` check the scanner applies at load time - so a pattern the UI accepts is one the scanner will actually use, and a rejected pattern never reaches your config.
+
+Every change saves automatically, and only the keys shown in the UI are rewritten - anything else in your `.privacy-guard.json` is preserved as-is.
 
 It edits whichever `.privacy-guard.json` `ConfigLoader.findConfig` would resolve for the directory you run it from: an existing project-level config always wins, but if none exists anywhere up the directory tree it falls back to `~/.privacy-guard.json` - a systemwide default that applies to every project, since Privacy Guard is protecting you, not one repo. Run it from `~` (or any directory with no project-level config) to edit that global default; run it from inside a specific project to create or edit a project-level override instead. The page and console output both tell you which one you're editing.
 
