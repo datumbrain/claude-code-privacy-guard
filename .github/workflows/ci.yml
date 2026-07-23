@@ -9,6 +9,12 @@ on:
 jobs:
   build-test:
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Windows runners default `run:` steps to PowerShell, which chokes on
+        # the bash `if ! cmd; then` syntax below. Force bash everywhere so the
+        # same steps behave identically on all three platforms.
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
