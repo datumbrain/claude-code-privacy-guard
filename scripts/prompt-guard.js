@@ -12,7 +12,7 @@
  */
 
 import { PrivacyScanner } from '../dist/scanner/engine.js';
-import { readFileSync, mkdirSync, appendFileSync } from 'fs';
+import { readFileSync, mkdirSync, appendFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../dist/scanner/detectors.js';
 import { ConfigLoader } from '../dist/config/loader.js';
@@ -72,6 +72,53 @@ function extractPrompt(raw) {
   return raw;
 }
 
+// Pull session_id out of the same envelope, used only to dedupe the
+// "disabled by config" notice below (one notice per session, not per prompt).
+function extractSessionId(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) return undefined;
+  try {
+    const payload = JSON.parse(trimmed);
+    if (payload && typeof payload.session_id === 'string') return payload.session_id;
+  } catch {
+    // Not JSON - no session id available.
+  }
+  return undefined;
+}
+
+// A config typo or a stale "enabled": false left over from debugging means
+// every prompt goes through unscanned with no signal to the user. Emit a
+// systemMessage the first time we see a given session_id, then stay quiet for
+// the rest of that session so we're not repeating ourselves on every prompt.
+function noticeIfDisabled(sessionId) {
+  const noticePath = path.join(getCacheDir(), 'disabled-notice.json');
+
+  if (sessionId) {
+    try {
+      const stored = JSON.parse(readFileSync(noticePath, 'utf-8'));
+      if (stored && stored.lastSessionId === sessionId) return;
+    } catch {
+      // No prior notice file (or unreadable) - treat as not yet notified.
+    }
+  }
+
+  console.log(
+    JSON.stringify({
+      systemMessage:
+        '🛡️ Privacy Guard is disabled ("enabled": false in .privacy-guard.json) - prompts are not being scanned.',
+    })
+  );
+
+  if (sessionId) {
+    try {
+      mkdirSync(path.dirname(noticePath), { recursive: true });
+      writeFileSync(noticePath, JSON.stringify({ lastSessionId: sessionId }));
+    } catch {
+      // Best-effort only; failing to persist just means we notice again next time.
+    }
+  }
+}
+
 debugLog([
   `=== Hook Execution ${new Date().toISOString()} ===`,
   `CLAUDE_PLUGIN_ROOT: ${process.env.CLAUDE_PLUGIN_ROOT ?? ''}`,
@@ -86,9 +133,10 @@ try {
   // envelope would both produce false positives on paths/ids and leak the JSON
   // into redact mode's copy-pasteable output.
   let promptText = '';
+  let rawStdin = '';
   try {
-    const raw = readFileSync(0, 'utf-8');
-    promptText = extractPrompt(raw);
+    rawStdin = readFileSync(0, 'utf-8');
+    promptText = extractPrompt(rawStdin);
   } catch (error) {
     // The shell wrapper discarded stderr when debug was off; keep stderr quiet
     // and route the error to the debug log instead. Exit non-zero as before -
@@ -103,6 +151,7 @@ try {
   const config = new ConfigLoader(configPath ?? undefined).getConfig();
 
   if (config.enabled === false) {
+    noticeIfDisabled(extractSessionId(rawStdin));
     finish('disabled', 0);
   }
 
