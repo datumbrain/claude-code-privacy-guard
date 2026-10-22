@@ -1,6 +1,6 @@
 # Claude Code Privacy Guard
 
-<img src="./assets/claude-code-privacy-guard-logo.png" alt="Claude Code Privacy Guard Logo" align="right" height="80" />
+<img src="./assets/logo.png" alt="Claude Code Privacy Guard Logo" align="right" height="80" />
 
 > 🛡️ Prevent secrets and PII from being accidentally shared with Claude Code.
 

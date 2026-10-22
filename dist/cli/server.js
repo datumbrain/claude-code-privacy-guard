@@ -45,7 +45,7 @@ export async function startRulesServer() {
         externalRulesMode: config.externalRulesMode ?? 'coding-only',
         externalRulesJsonPath: config.externalRulesJsonPath ?? '',
     };
-    const logoPath = fileURLToPath(new URL('../../assets/claude-code-privacy-guard-logo.png', import.meta.url));
+    const logoPath = fileURLToPath(new URL('../../assets/logo.png', import.meta.url));
     const token = randomBytes(16).toString('hex');
     const server = http.createServer((req, res) => {
         resetInactivityTimer();
