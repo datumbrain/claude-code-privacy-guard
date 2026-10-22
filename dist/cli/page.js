@@ -19,7 +19,7 @@ export function renderPage(rules, allowlists, settings, token, configPath, isGlo
   :root { color-scheme: light dark; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 2rem; max-width: 860px; margin-inline: auto; }
   .brand { display: flex; align-items: center; gap: 0.5rem; }
-  .brand img { height: 1.3rem; width: 1.3rem; border-radius: 4px; position: relative; top: 4px; }
+  .brand img { height: 1.5rem; width: auto; image-rendering: pixelated; position: relative; top: 2px; }
   h1 { font-size: 1.3rem; margin-bottom: 0.25rem; }
   .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 1.5rem; }
   .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
