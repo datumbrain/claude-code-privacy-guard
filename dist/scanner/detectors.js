@@ -291,6 +291,27 @@ export const BUILTIN_RULES = [
         enabled: true,
     },
     {
+        id: 'env-secret-assignment',
+        title: 'Unquoted Env-Style Secret Assignment',
+        description: 'Detects unquoted .env-style assignments (API_KEY=..., export SECRET=...) whose value looks like a real secret',
+        severity: 'high',
+        category: 'secret',
+        // Complements generic-code-secret-assignment, which needs quotes. Only the
+        // VALUE is matched (the name is a lookbehind), so redacted output keeps the
+        // variable name (API_KEY=<SECRET>) and allowedValues compares the value.
+        //   - name: UPPER_SNAKE ending in KEY/SECRET/TOKEN/PASSWORD/PASSWD/
+        //     CREDENTIAL(S), so PORT, DEBUG, NODE_ENV never qualify.
+        //   - value: 16+ chars from a secret-safe alphabet starting alphanumeric
+        //     (skips ${VAR}, $(cmd), paths, URLs) and mixing a letter with a digit,
+        //     so words like your_api_key_here fail; runs of x/X (xxxxxx) are
+        //     treated as masked placeholders.
+        // Every quantifier is bounded or single-level, so it stays ReDoS-safe.
+        pattern: /(?<=(?<![A-Za-z0-9_])(?:[A-Z][A-Z0-9_]{0,63})?(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?)[ \t]*=[ \t]*)(?![A-Za-z0-9_\-/+]*[xX]{6})(?=[A-Za-z0-9_\-/+]*\d)(?=[A-Za-z0-9_\-/+]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9_\-/+]{15,}=*/g,
+        examples: ['API_KEY=hunter2hunter2hunter2live', 'export DB_PASSWORD=q7Zk9mXw3Lp2Rt8Vn4Bc'],
+        redactionStrategy: 'token-replace',
+        enabled: true,
+    },
+    {
         id: 'private-key',
         title: 'Private Key',
         description: 'Detects SSH and PEM private keys',

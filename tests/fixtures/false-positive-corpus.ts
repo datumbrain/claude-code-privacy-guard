@@ -100,6 +100,18 @@ export const CORPUS: CorpusGroup[] = [
     ],
   },
   {
+    category: 'benign .env-style assignments (no secret-shaped value)',
+    snippets: [
+      'NODE_ENV=production\nPORT=8080\nDEBUG=true\nLOG_LEVEL=info',
+      'API_KEY=your_api_key_here',
+      'DATABASE_URL=postgres://localhost:5432/app',
+      'export SECRET_KEY=${SECRET_KEY}',
+      'GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}',
+      'SSL_KEY_PATH=/etc/ssl/private/server2.key',
+      'AWS_REGION=us-east-1\nAWS_DEFAULT_OUTPUT=json',
+    ],
+  },
+  {
     category: 'markdown docs about authentication',
     snippets: [
       '# Authentication\n\nProvide an API key via the `Authorization` header as a Bearer token.',
@@ -190,6 +202,11 @@ export const CANARIES: { label: string; snippet: string; expectRuleId: string }[
     label: 'GitHub token (secret)',
     snippet: 'ghp_abcdefghijklmnopqrstuvwxyz1234567890',
     expectRuleId: 'github-token',
+  },
+  {
+    label: 'unquoted .env secret assignment (secret)',
+    snippet: 'API_KEY=hunter2hunter2hunter2live',
+    expectRuleId: 'env-secret-assignment',
   },
   {
     label: 'hardcoded secret assignment (secret)',

@@ -147,6 +147,117 @@ describe('azure-client-secret rule', () => {
   });
 });
 
+describe('env-secret-assignment rule (issue #53)', () => {
+  const envRule = BUILTIN_RULES.find((rule) => rule.id === 'env-secret-assignment') as DetectionRule;
+  const scanner = new PrivacyScanner([envRule]);
+
+  test.each([
+    'API_KEY=hunter2hunter2hunter2live',
+    'export SECRET=abcd1234efgh5678ijkl9012',
+    'DB_PASSWORD = q7Zk9mXw3Lp2Rt8Vn4Bc',
+    'STRIPE_WEBHOOK_SECRET=whsec_abc123def456ghi789jkl',
+    'AUTH_TOKEN=Zm9vYmFyMTIzNDU2Nzg5MDEyMzQ1Ng==',
+    'SERVICE_CREDENTIALS=a1b2c3d4e5f6a7b8c9d0',
+    'ADMIN_PASSWD=Tr0ub4dor3AndMoreChars',
+    'KEY=abcdef0123456789abcdef',
+  ])('matches unquoted assignment: %s', (line: string) => {
+    const result = scanner.scan(line);
+    expect(result.findings.map((f) => f.ruleId)).toEqual(['env-secret-assignment']);
+  });
+
+  test('matches each line of a pasted .env file and ignores the benign ones', () => {
+    const env = [
+      'NODE_ENV=production',
+      'PORT=8080',
+      'DEBUG=true',
+      'DATABASE_URL_PASSWORD=Pg9xQ2mV7kLw4TzR8nBd',
+      'LOG_LEVEL=info',
+      'JWT_SECRET=8f3a1c9e7b2d4f6a0c5e',
+    ].join('\n');
+    const result = scanner.scan(env);
+    expect(result.findings.map((f) => f.match)).toEqual(['Pg9xQ2mV7kLw4TzR8nBd', '8f3a1c9e7b2d4f6a0c5e']);
+  });
+
+  test('matches only the value, so redaction keeps the variable name', () => {
+    const result = scanner.scan('export API_KEY=hunter2hunter2hunter2live # prod');
+    expect(result.findings[0].match).toBe('hunter2hunter2hunter2live');
+    expect(result.redactedText).toBe('export API_KEY=<SECRET> # prod');
+  });
+
+  test('keeps trailing base64 padding in the match', () => {
+    const result = scanner.scan('AUTH_TOKEN=Zm9vYmFyMTIzNDU2Nzg5MDEyMzQ1Ng==');
+    expect(result.findings[0].match).toBe('Zm9vYmFyMTIzNDU2Nzg5MDEyMzQ1Ng==');
+  });
+
+  test('allowedValues suppresses a matched value', () => {
+    const allowlisted = new PrivacyScanner([envRule], { allowedValues: ['hunter2hunter2hunter2live'] });
+    expect(allowlisted.scan('API_KEY=hunter2hunter2hunter2live').findings).toHaveLength(0);
+  });
+
+  test.each([
+    'DEBUG=true',
+    'PORT=8080',
+    'NODE_ENV=production',
+    'LOG_LEVEL=info',
+    'TZ=Europe/Amsterdam',
+    'DATABASE_URL=postgres://localhost:5432/app',
+    'API_KEY=',
+    'API_KEY=abc123',
+    'TOKEN=short1',
+    'API_KEY=your_api_key_here',
+    'API_KEY=changeme_changeme_changeme',
+    'API_KEY=xxxxxxxxxxxxxxxxxx1',
+    'API_KEY=XXXXXXXXXXXXXXXXXXXX',
+    'API_KEY=1234567890123456789',
+    'API_KEY=${API_KEY}',
+    'API_KEY=$(cat /run/secrets/api_key)',
+    'GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}',
+    'SSL_KEY_PATH=/etc/ssl/private/server2.key',
+    'SECRET_KEY=https://vault.internal/secret1',
+    'api_key=abc123def456ghi789jkl0',
+    'MYSECRETSAUCE=abc123def456ghi789jkl0',
+    'API_KEY_ID=abc123def456ghi789jkl0',
+    'API_KEY_FILE=abc123def456ghi789jkl0',
+  ])('does not match benign line: %s', (line: string) => {
+    expect(scanner.scan(line).findings).toHaveLength(0);
+  });
+
+  test('does not match across a newline after the equals sign', () => {
+    expect(scanner.scan('API_KEY=\nabcdefghij1234567890').findings).toHaveLength(0);
+  });
+
+  test('does not match prose that merely names the variable', () => {
+    expect(scanner.scan('set the API_KEY variable and then restart the server').findings).toHaveLength(0);
+  });
+
+  test('quoted values still go to the quoted-assignment rule, not this one', () => {
+    const result = scanner.scan('AUTH_TOKEN="abc123def456ghi789jkl0"');
+    expect(result.findings).toHaveLength(0);
+  });
+
+  test('is flagged alongside the generic rule without double-redacting', () => {
+    const both = new PrivacyScanner(BUILTIN_RULES);
+    const result = both.scan('API_KEY=hunter2hunter2hunter2live');
+    expect(result.findings).toHaveLength(1);
+    expect(result.redactedText).toBe('API_KEY=<SECRET>');
+  });
+
+  test('stays linear on pathological input', () => {
+    const inputs = [
+      'KEY='.repeat(40_000),
+      `API_KEY=${'a1'.repeat(100_000)}`,
+      `API_KEY=${'a'.repeat(190_000)}`,
+      `${'A'.repeat(60)}=`.repeat(3_000) + 'KEY=x',
+      'KEY'.repeat(60_000),
+    ];
+    for (const input of inputs) {
+      const start = Date.now();
+      scanner.scan(input);
+      expect(Date.now() - start).toBeLessThan(1000);
+    }
+  });
+});
+
 describe('bearer-token rule', () => {
   const bearerRule = BUILTIN_RULES.find((rule) => rule.id === 'bearer-token') as DetectionRule;
   const scanner = new PrivacyScanner([bearerRule]);
