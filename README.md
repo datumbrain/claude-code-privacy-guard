@@ -211,6 +211,12 @@ type "$env:LOCALAPPDATA\claude-code-privacy-guard\debug.log"
 
 The log only contains execution metadata (timestamp, plugin root, working directory, Node version, exit path/code) - it never contains matched secret or PII values.
 
+## Rule cache
+
+To avoid re-parsing and re-vetting `data/regex_list_1.json` (every regex is compiled and checked for catastrophic backtracking) on every prompt, the vetted external rule set is cached in `rules-cache.json` next to the debug log (`${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-privacy-guard/` on macOS/Linux, `%LOCALAPPDATA%\claude-code-privacy-guard\` on Windows). The cache is keyed on the data file's contents, the `externalRulesMode` filter, and the plugin version, so editing the rules file or upgrading the plugin rebuilds it automatically. `disabledRules` and the allowlists are applied after loading, so changing them takes effect immediately. A missing, corrupt, or unwritable cache just falls back to a normal load.
+
+Set `PRIVACY_GUARD_NO_CACHE=1` to bypass it, and run `scripts/bench-hook.sh` to compare hook time with and without it. The cache is safe to delete at any time.
+
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for dev setup, how to add a detection rule, and the release process.
