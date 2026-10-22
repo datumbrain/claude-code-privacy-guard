@@ -9,7 +9,7 @@
   "files": [
     "dist",
     "data",
-    "assets"
+    "assets/logo.png"
   ],
   "scripts": {
     "build": "tsc",
@@ -28,6 +28,17 @@
   ],
   "author": "Datum Brain",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/datumbrain/claude-code-privacy-guard.git"
+  },
+  "homepage": "https://github.com/datumbrain/claude-code-privacy-guard#readme",
+  "bugs": {
+    "url": "https://github.com/datumbrain/claude-code-privacy-guard/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "js-yaml": "^4.1.0",
     "safe-regex2": "^5.1.1"

@@ -83,7 +83,13 @@ which runs `scripts/release.sh`. It interactively:
    previous tag - review and edit the generated entry for clarity before
    confirming.
 5. Creates a release commit and git tag.
-6. Optionally pushes to `origin` and publishes to npm.
+6. Optionally pushes to `origin` and publishes the GitHub release.
+7. Only after the GitHub release, optionally publishes to npm. This is
+   opt-in and defaults to **No** at every prompt: it checks `npm whoami`,
+   runs `npm publish --dry-run` so you can inspect the tarball, then asks
+   once more before the real `npm publish`. Publishing needs an npm account
+   with publish rights to `claude-code-privacy-guard` (and its 2FA, if
+   enabled, will prompt for an OTP).
 
 ## Reporting issues
 
