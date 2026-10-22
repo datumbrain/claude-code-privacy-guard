@@ -35,6 +35,16 @@ A privacy-first plugin for Claude Code that scans prompts for sensitive data and
 
 Once restarted, the plugin will automatically scan all prompts before they reach Claude.
 
+### Rules UI without the plugin (npm)
+
+The rules/allowlist web UI also ships as an npm package, so it can be run without installing the Claude Code plugin:
+
+```bash
+npx claude-code-privacy-guard rules
+```
+
+> The package is not on the npm registry yet. Until the first publish (tracked in [#39](https://github.com/datumbrain/claude-code-privacy-guard/issues/39)) this command will 404; use the plugin install above, or run `node dist/cli/index.js rules` from a clone.
+
 ## What Gets Detected
 
 ✅ **Secrets**
