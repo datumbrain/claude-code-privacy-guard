@@ -55,7 +55,7 @@ Once restarted, the plugin will automatically scan all prompts before they reach
 - JWT tokens
 - Bearer tokens
 - SSH and PEM private keys
-- Generic API key/secret/token assignments in code
+- Generic API key/secret/token assignments in code (quoted values, plus unquoted `.env`-style lines like `API_KEY=...` and `export SECRET=...`)
 
 Plus a bundled external ruleset (`data/regex_list_1.json`, filterable via `externalRulesMode`) covering many more service-specific tokens - see [Managing Rules](#managing-rules) to browse the full list.
 
