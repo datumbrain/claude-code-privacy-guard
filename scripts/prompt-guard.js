@@ -15,6 +15,7 @@ import { PrivacyScanner } from '../dist/scanner/engine.js';
 import { readFileSync, mkdirSync, appendFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../dist/scanner/detectors.js';
+import { loadExternalRulesCached } from '../dist/scanner/rule-cache.js';
 import { ConfigLoader } from '../dist/config/loader.js';
 import { buildHookResponse } from '../dist/hook/response.js';
 import * as path from 'path';
@@ -23,6 +24,11 @@ import * as os from 'os';
 // Debug logging is opt-in: set PRIVACY_GUARD_DEBUG=1 to enable. The log only
 // ever holds execution metadata - never matched secret or PII values.
 const DEBUG = process.env.PRIVACY_GUARD_DEBUG === '1';
+
+// The vetted external rule set is cached on disk between invocations (see
+// src/scanner/rule-cache.ts). PRIVACY_GUARD_NO_CACHE=1 bypasses it, e.g. to
+// rule the cache out while debugging or to benchmark a cold load.
+const USE_RULE_CACHE = process.env.PRIVACY_GUARD_NO_CACHE !== '1';
 
 // Resolve the per-user cache directory in a cross-platform way. On Windows we
 // use %LOCALAPPDATA%; on POSIX we honor XDG_CACHE_HOME, falling back to
@@ -34,6 +40,17 @@ function getCacheDir() {
   }
   const base = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
   return path.join(base, 'claude-code-privacy-guard');
+}
+
+// Plugin version, used so a plugin upgrade never reuses the previous version's
+// rule cache. Falls back to a constant if package.json can't be read.
+function getPluginVersion() {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+    return typeof pkg.version === 'string' ? pkg.version : 'unknown';
+  } catch {
+    return 'unknown';
+  }
 }
 
 // Append metadata lines to the debug log. Best-effort: debug logging must never
@@ -162,7 +179,18 @@ try {
     externalRulesPath = path.resolve(baseDir, config.externalRulesJsonPath);
   }
   const codingOnly = (config.externalRulesMode ?? 'coding-only') === 'coding-only';
-  const externalRules = loadExternalRulesFromJson(externalRulesPath, { codingOnly });
+  let externalRules;
+  if (USE_RULE_CACHE) {
+    const loaded = loadExternalRulesCached(
+      externalRulesPath,
+      { codingOnly },
+      { dir: getCacheDir(), version: getPluginVersion() }
+    );
+    externalRules = loaded.rules;
+    debugLog([`External rules: ${externalRules.length} (cache ${loaded.cacheHit ? 'hit' : 'miss'})`]);
+  } else {
+    externalRules = loadExternalRulesFromJson(externalRulesPath, { codingOnly });
+  }
 
   // Honor disabledRules from config for both built-in and external rules
   const disabledRules = new Set(config.disabledRules);
