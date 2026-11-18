@@ -184,6 +184,29 @@ describe('env-unquoted-secret-assignment rule', () => {
   });
 });
 
+describe('env-unquoted-secret-assignment performance', () => {
+  const rule = BUILTIN_RULES.find((r) => r.id === 'env-unquoted-secret-assignment') as DetectionRule;
+  const scanner = new PrivacyScanner([rule], { maxScanLength: 1_000_000 });
+
+  test.each([
+    ['KEY= repeated', 'KEY='.repeat(40_000)],
+    ['A_KEY_ repeated', 'A_KEY_'.repeat(30_000)],
+    ['KEYKEY repeated', 'KEY'.repeat(30_000)],
+    ['AUTH repeated', 'AUTH'.repeat(25_000)],
+    ['equals run after name', `API_KEY${'='.repeat(100_000)}`],
+  ])('scans pathological input in linear time: %s', (_label: string, text: string) => {
+    const start = Date.now();
+    scanner.scan(text);
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+
+  test('still matches a value with base64 padding', () => {
+    const result = scanner.scan('API_KEY=Zk93LmQ7xT2vB8nR5wYc1HdE4sGf6JaP==');
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].match.endsWith('==')).toBe(true);
+  });
+});
+
 describe('bearer-token rule', () => {
   const bearerRule = BUILTIN_RULES.find((rule) => rule.id === 'bearer-token') as DetectionRule;
   const scanner = new PrivacyScanner([bearerRule]);
