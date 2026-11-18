@@ -100,6 +100,15 @@ export const CORPUS: CorpusGroup[] = [
     ],
   },
   {
+    category: 'benign .env lines (no secret-shaped value)',
+    snippets: [
+      'DEBUG=true\nPORT=8080\nNODE_ENV=production',
+      'API_KEY=changeme',
+      'SECRET_KEY=${SECRET_KEY}',
+      'export AUTH_TOKEN=$AUTH_TOKEN_FROM_CI',
+    ],
+  },
+  {
     category: 'markdown docs about authentication',
     snippets: [
       '# Authentication\n\nProvide an API key via the `Authorization` header as a Bearer token.',
@@ -195,6 +204,11 @@ export const CANARIES: { label: string; snippet: string; expectRuleId: string }[
     label: 'hardcoded secret assignment (secret)',
     snippet: 'api_key = "abc1234567890secretvalue"',
     expectRuleId: 'generic-code-secret-assignment',
+  },
+  {
+    label: 'unquoted .env secret assignment (secret)',
+    snippet: 'API_KEY=hunter2hunter2hunter2live',
+    expectRuleId: 'env-unquoted-secret-assignment',
   },
   {
     label: 'PEM private key (secret)',
