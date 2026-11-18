@@ -4,7 +4,7 @@ import { describe, expect, jest, test } from '@jest/globals';
 import { PrivacyScanner, compileRulePattern } from '../src/scanner/engine';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../src/scanner/detectors';
 import { PII_RULES } from '../src/scanner/pii';
-import { probeRegex } from '../src/scanner/regex-audit';
+import { checkGrowth } from '../src/scanner/regex-audit';
 import { DetectionRule } from '../src/types/findings';
 
 const dataPath = path.resolve(process.cwd(), 'data/gitleaks-rules.json');
@@ -72,13 +72,22 @@ describe('bundled gitleaks ruleset', () => {
 });
 
 describe('catastrophic-backtracking audit of every shipped rule', () => {
-  // Built-ins, the bundled gitleaks set and the opt-in PII rules. A linear
-  // regex takes a few ms on 20k chars; a quadratic one takes hundreds.
+  // Built-ins, the bundled gitleaks set and the opt-in PII rules. Judged by how
+  // time grows with input size, not by a fixed millisecond cutoff, because a
+  // shared CI runner can stall one run by 100+ ms (seen on macOS).
   const shipped: DetectionRule[] = [...BUILTIN_RULES, ...gitleaksRules, ...Object.values(PII_RULES)];
 
   test.each(shipped.map((rule) => [rule.id, rule] as const))('%s stays linear', (_id, rule) => {
-    const { worstMs, shape } = probeRegex(compileRulePattern(rule), 20_000);
-    if (worstMs >= 100) throw new Error(`${rule.id} took ${worstMs.toFixed(0)} ms on ${JSON.stringify(shape)}`);
+    const v = checkGrowth(compileRulePattern(rule));
+    if (v.quadratic) {
+      throw new Error(`${rule.id} looks quadratic on ${JSON.stringify(v.shape)}: 4x input took ${v.ratio?.toFixed(1)}x longer`);
+    }
+  });
+
+  test('checkGrowth flags a known quadratic regex and passes a linear one', () => {
+    // The pre-fix email pattern: restarts at every character of a long run.
+    expect(checkGrowth(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g).quadratic).toBe(true);
+    expect(checkGrowth(/sk_live_[A-Za-z0-9]{24}/g).quadratic).toBe(false);
   });
 
   test('email-address no longer goes quadratic on long dash/dot runs', () => {

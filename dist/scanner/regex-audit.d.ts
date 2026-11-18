@@ -29,3 +29,26 @@ export interface ProbeResult {
  * `length` characters and report the slowest one.
  */
 export declare function probeRegex(pattern: RegExp, length?: number): ProbeResult;
+export interface GrowthVerdict {
+    quadratic: boolean;
+    shape: string;
+    /** Slowest single probe at the base length, in ms. */
+    worstMs: number;
+    /** Time ratio for a 4x longer input on the slowest shape (about 4 if linear, 16 if quadratic). */
+    ratio?: number;
+}
+/**
+ * Decide whether a regex goes quadratic, robustly on slow or noisy machines
+ * (shared CI runners can stall a single run by 100+ ms).
+ *
+ * A fast first pass probes every shape once. Only if the slowest one exceeds
+ * `budgetMs` is that shape re-measured, taking the fastest of several runs at
+ * `length / 2` and `length * 2`. A linear regex grows about 4x over that 4x
+ * input increase; a quadratic one about 16x. Growth above `maxRatio` (with a
+ * meaningful absolute time) is the verdict, not a single slow run.
+ */
+export declare function checkGrowth(pattern: RegExp, { length, budgetMs, maxRatio }?: {
+    length?: number;
+    budgetMs?: number;
+    maxRatio?: number;
+}): GrowthVerdict;
