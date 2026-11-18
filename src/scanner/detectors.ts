@@ -48,7 +48,7 @@ export const BUILTIN_RULES: DetectionRule[] = [
     // domain). The old /\b[...]+@.../ restarted at every character of long
     // runs like "1-1-1-..." and was quadratic (about 25 s on 200k chars).
     pattern: /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,8}[A-Za-z]{2,24}(?![A-Za-z0-9-])/g,
-    examples: ['user@example.com', 'john.doe@company.co.uk'],
+    examples: ['user@acme-corp.io', 'john.doe@company.co.uk'],
     redactionStrategy: 'semantic',
     enabled: true,
   },

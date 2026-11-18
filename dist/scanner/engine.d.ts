@@ -31,6 +31,13 @@ export interface ScannerOptions {
     maxScanLength?: number;
 }
 /**
+ * Domains reserved for documentation and testing (RFC 2606 / RFC 6761). No
+ * real person has a mailbox there, so addresses like `john.doe@example.com`
+ * in READMEs, docs and tests are never PII. Always allowed, in addition to the
+ * user's `allowedDomains`; matching covers subdomains too.
+ */
+export declare const RESERVED_EMAIL_DOMAINS: string[];
+/**
  * Compile a rule's pattern for scanning. String patterns get the rule's own
  * `flags` plus "g" and "m" (the historical default); RegExp patterns keep
  * their flags plus "g".

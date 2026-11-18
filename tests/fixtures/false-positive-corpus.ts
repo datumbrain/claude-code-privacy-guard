@@ -172,7 +172,7 @@ export const KNOWN_FALSE_POSITIVES: { snippet: string; firesRuleId: string; note
 export const CANARIES: { label: string; snippet: string; expectRuleId: string }[] = [
   {
     label: 'email address (pii)',
-    snippet: 'contact user@example.com for access',
+    snippet: 'contact user@acme-corp.io for access',
     expectRuleId: 'email-address',
   },
   {

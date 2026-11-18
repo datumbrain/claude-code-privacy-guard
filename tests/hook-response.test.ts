@@ -7,7 +7,7 @@ const emailRule = BUILTIN_RULES.filter((r) => r.id === 'email-address');
 
 function scanWithFinding() {
   const scanner = new PrivacyScanner(emailRule);
-  return scanner.scan('reach me at john@example.com please');
+  return scanner.scan('reach me at john@acme-corp.io please');
 }
 
 function scanClean() {
@@ -28,7 +28,7 @@ describe('buildHookResponse', () => {
     const response = buildHookResponse(result, 'block');
     expect(response?.decision).toBe('block');
     expect(response?.reason).toContain('Privacy Guard blocked this prompt');
-    expect(response?.reason).not.toContain('john@example.com');
+    expect(response?.reason).not.toContain('john@acme-corp.io');
     expect(response?.systemMessage).toBeUndefined();
   });
 
@@ -37,7 +37,7 @@ describe('buildHookResponse', () => {
     const response = buildHookResponse(result, 'redact');
     expect(response?.decision).toBe('block');
     expect(response?.reason).toContain(result.redactedText);
-    expect(response?.reason).not.toContain('john@example.com');
+    expect(response?.reason).not.toContain('john@acme-corp.io');
   });
 
   test('warn mode allows the prompt through (no decision) and surfaces a systemMessage', () => {
@@ -45,6 +45,6 @@ describe('buildHookResponse', () => {
     const response = buildHookResponse(result, 'warn');
     expect(response?.decision).toBeUndefined();
     expect(response?.systemMessage).toContain('warn mode - prompt allowed through');
-    expect(response?.systemMessage).not.toContain('john@example.com');
+    expect(response?.systemMessage).not.toContain('john@acme-corp.io');
   });
 });

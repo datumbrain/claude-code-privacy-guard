@@ -365,7 +365,7 @@ describe('email-address rule TLD class (character-class typo fix)', () => {
   const emailRule = BUILTIN_RULES.find((rule) => rule.id === 'email-address') as DetectionRule;
   const scanner = new PrivacyScanner([emailRule]);
 
-  test.each(['user@example.com', 'john.doe@company.co.uk'])(
+  test.each(['user@acme-corp.io', 'john.doe@company.co.uk'])(
     'still matches a valid email: %s',
     (email: string) => {
       const result = scanner.scan(`contact ${email} please`);
