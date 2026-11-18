@@ -16,6 +16,7 @@ const KNOWN_CONFIG_KEYS = new Set([
     'externalRulesMode',
     'allowedValues',
     'allowedPatterns',
+    'piiProfile',
 ]);
 const DEFAULT_CONFIG = {
     enabled: true,
@@ -24,7 +25,21 @@ const DEFAULT_CONFIG = {
     disabledRules: [],
     allowedValues: [],
     allowedPatterns: [],
+    piiProfile: {},
 };
+const PII_PROFILE_KEYS = ['creditCard', 'ssn', 'phone'];
+// Only a literal `true` enables a detector; anything malformed is treated as
+// off so a typo can never silently widen what the guard scans.
+function normalizePiiProfile(value) {
+    const profile = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return profile;
+    for (const key of PII_PROFILE_KEYS) {
+        if (value[key] === true)
+            profile[key] = true;
+    }
+    return profile;
+}
 export class ConfigLoader {
     config;
     constructor(configPath) {
@@ -51,6 +66,7 @@ export class ConfigLoader {
                     console.warn(`Privacy Guard: invalid "mode" value "${merged.mode}" in config, falling back to "block"`);
                     merged.mode = 'block';
                 }
+                merged.piiProfile = normalizePiiProfile(merged.piiProfile);
                 return merged;
             }
         }

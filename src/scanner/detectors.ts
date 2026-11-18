@@ -6,6 +6,7 @@ import { DetectionRule } from '../types/findings.js';
 import * as fs from 'fs';
 import { createHash } from 'crypto';
 import safeRegex from 'safe-regex2';
+import { ENTROPY_RULE } from './entropy.js';
 
 interface ExternalRegexEntry {
   name: string;
@@ -15,7 +16,7 @@ interface ExternalRegexEntry {
   category: string;
 }
 
-interface ExternalRuleOptions {
+export interface ExternalRuleOptions {
   codingOnly?: boolean;
 }
 
@@ -332,6 +333,7 @@ export const BUILTIN_RULES: DetectionRule[] = [
     redactionStrategy: 'token-replace',
     enabled: true,
   },
+  ENTROPY_RULE,
 ];
 
 const CODING_SECRET_KEYWORDS = [

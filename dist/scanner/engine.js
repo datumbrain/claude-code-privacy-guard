@@ -139,6 +139,20 @@ export class PrivacyScanner {
                 pattern.lastIndex += 1;
                 continue;
             }
+            // Rules with a validator (Luhn, entropy, ...) only keep candidates it
+            // accepts. A throwing validator must never break the scan, so it counts
+            // as "reject".
+            if (rule.validate) {
+                let accepted = false;
+                try {
+                    accepted = rule.validate(matchText, match);
+                }
+                catch {
+                    accepted = false;
+                }
+                if (!accepted)
+                    continue;
+            }
             const redactedValue = this.generateRedaction(rule, matchText);
             findings.push({
                 ruleId: rule.id,

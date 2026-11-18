@@ -14,11 +14,24 @@
 import { PrivacyScanner } from '../dist/scanner/engine.js';
 import { readFileSync, mkdirSync, appendFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { BUILTIN_RULES, loadExternalRulesFromJson } from '../dist/scanner/detectors.js';
+import { BUILTIN_RULES } from '../dist/scanner/detectors.js';
+import { loadExternalRulesCached } from '../dist/scanner/rule-cache.js';
+import { getPiiRules } from '../dist/scanner/pii.js';
 import { ConfigLoader } from '../dist/config/loader.js';
 import { buildHookResponse } from '../dist/hook/response.js';
 import * as path from 'path';
 import * as os from 'os';
+
+// Plugin version, used to invalidate the compiled-rules cache on upgrade.
+// Falls back to "unknown" (cache still works, it just won't auto-invalidate
+// on upgrade) if package.json can't be read.
+function getPluginVersion() {
+  try {
+    return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version;
+  } catch {
+    return 'unknown';
+  }
+}
 
 // Debug logging is opt-in: set PRIVACY_GUARD_DEBUG=1 to enable. The log only
 // ever holds execution metadata - never matched secret or PII values.
@@ -162,12 +175,20 @@ try {
     externalRulesPath = path.resolve(baseDir, config.externalRulesJsonPath);
   }
   const codingOnly = (config.externalRulesMode ?? 'coding-only') === 'coding-only';
-  const externalRules = loadExternalRulesFromJson(externalRulesPath, { codingOnly });
+  // The vetted external rule set is cached on disk (keyed on the rules file's
+  // content, options and plugin version) so unchanged rules are not re-parsed
+  // and re-vetted on every prompt.
+  const externalRules = loadExternalRulesCached(
+    externalRulesPath,
+    { codingOnly },
+    { cacheDir: getCacheDir(), version: getPluginVersion() }
+  );
 
-  // Honor disabledRules from config for both built-in and external rules
+  // Honor disabledRules from config for built-in, external and opt-in PII
+  // rules. Opt-in PII detectors (piiProfile) are off unless explicitly enabled.
   const disabledRules = new Set(config.disabledRules);
   const scanner = new PrivacyScanner(
-    [...BUILTIN_RULES, ...externalRules].filter((rule) => !disabledRules.has(rule.id)),
+    [...BUILTIN_RULES, ...externalRules, ...getPiiRules(config.piiProfile)].filter((rule) => !disabledRules.has(rule.id)),
     {
       allowedDomains: config.allowedDomains,
       allowedValues: config.allowedValues,

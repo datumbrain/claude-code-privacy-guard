@@ -28,6 +28,14 @@ export interface DetectionRule {
   examples: string[];
   redactionStrategy: RedactionStrategy;
   enabled: boolean;
+  /**
+   * Optional post-match check. The scanner runs it on every regex match and
+   * drops the match when it returns false, so a rule can pair a cheap
+   * candidate regex with a precise validator (Luhn checksum, entropy
+   * threshold, ...). `groups` is the raw exec result, so the validator can read
+   * capture groups. Not serialized: rules loaded from JSON never have one.
+   */
+  validate?: (match: string, groups: RegExpExecArray) => boolean;
 }
 
 export interface Finding {
@@ -65,4 +73,15 @@ export interface PrivacyGuardConfig {
   externalRulesMode?: 'coding-only' | 'all';
   allowedValues: string[];
   allowedPatterns: string[];
+  piiProfile?: PiiProfile;
+}
+
+/**
+ * Opt-in PII detectors. Every flag defaults to off so the tool stays
+ * coding-focused unless a user asks for more.
+ */
+export interface PiiProfile {
+  creditCard?: boolean;
+  ssn?: boolean;
+  phone?: boolean;
 }
