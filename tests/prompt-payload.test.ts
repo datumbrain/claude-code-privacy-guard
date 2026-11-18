@@ -34,7 +34,7 @@ const ENVELOPE = {
   prompt_id: 'c8320832-4a29-41d5-aa58-359903658ce6',
   permission_mode: 'default',
   hook_event_name: 'UserPromptSubmit',
-  prompt: 'my email is john.doe@example.com',
+  prompt: 'my email is john.doe@acme-corp.io',
 };
 
 describe('hook stdin payload handling', () => {
@@ -60,7 +60,7 @@ describe('hook stdin payload handling', () => {
   });
 
   test('falls back to scanning raw stdin when it is not a JSON envelope', () => {
-    const response = runHook('my email is john.doe@example.com', { mode: 'block' });
+    const response = runHook('my email is john.doe@acme-corp.io', { mode: 'block' });
 
     expect(response?.decision).toBe('block');
     expect(response?.reason).toContain('Email Address');

@@ -49,6 +49,22 @@ export interface ScannerOptions {
 }
 
 /**
+ * Domains reserved for documentation and testing (RFC 2606 / RFC 6761). No
+ * real person has a mailbox there, so addresses like `john.doe@example.com`
+ * in READMEs, docs and tests are never PII. Always allowed, in addition to the
+ * user's `allowedDomains`; matching covers subdomains too.
+ */
+export const RESERVED_EMAIL_DOMAINS = [
+  'example.com',
+  'example.org',
+  'example.net',
+  'example',
+  'test',
+  'invalid',
+  'localhost',
+];
+
+/**
  * Compile a rule's pattern for scanning. String patterns get the rule's own
  * `flags` plus "g" and "m" (the historical default); RegExp patterns keep
  * their flags plus "g".
@@ -149,12 +165,11 @@ export class PrivacyScanner {
    * `a@mail.example.com`).
    */
   private isAllowlistedDomain(finding: Finding): boolean {
-    if (this.allowedDomains.length === 0 || finding.ruleId !== 'email-address') {
-      return false;
-    }
+    if (finding.ruleId !== 'email-address') return false;
     const domain = finding.match.split('@')[1]?.toLowerCase();
     if (!domain) return false;
-    return this.allowedDomains.some(d => domain === d || domain.endsWith('.' + d));
+    const matches = (d: string) => domain === d || domain.endsWith('.' + d);
+    return RESERVED_EMAIL_DOMAINS.some(matches) || this.allowedDomains.some(matches);
   }
 
   /**

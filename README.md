@@ -2,20 +2,21 @@
 
 <img src="./assets/logo.png" alt="Claude Code Privacy Guard Logo" align="right" height="80" />
 
-> 🛡️ Prevent secrets and PII from being accidentally shared with Claude Code.
+> 🛡️ Stops Claude Code from reading your secrets, not just from you typing them.
 
-A privacy-first plugin for Claude Code that scans prompts for sensitive data and **blocks** them before they reach the AI.
+A privacy-first plugin for Claude Code. Coding agents don't only see what you type: they read files and run commands on their own, and one `cat .env` puts your credentials in the model's context. Privacy Guard checks every path a secret can take - your prompts, the agent's tool calls, the files it reads, and the output it gets back - and **blocks** the leak before it reaches the AI. It keeps protecting in auto mode, where nobody is approving tool calls.
 
 ![Claude Code Privacy Guard Screenshot](./assets/claude-code-privacy-guard-ss.png)
 
 ## Features
 
-- ✅ **Blocks prompts** containing sensitive data before they're sent to Claude
-- ✅ **Guards tool calls** - asks before Claude reads `.env`, credential files, or a file containing secrets, and before Bash dumps the environment; warns when tool output contained secrets
-- ✅ **Detects** PII, secrets, API keys, tokens, and sensitive information
-- ✅ **Works locally** - all scanning happens on your machine
-- ✅ **Zero configuration** - works out of the box
-- ✅ **Detailed reporting** - shows exactly what was detected
+- ✅ **Blocks prompts** containing secrets or PII before they're sent to Claude
+- ✅ **Guards tool calls** - stops Claude from reading `.env`, SSH keys, cloud credential files, or any file whose contents hold a secret, and from dumping the environment through Bash
+- ✅ **Works in auto mode** - where a confirmation prompt would never reach you, it denies instead of asking
+- ✅ **Warns after the fact** - if a secret shows up in tool output, you're told so you can rotate it, and Claude is told not to repeat it
+- ✅ **Broad detection** - about 200 rules from gitleaks plus code-focused checks (`.env` lines, high-entropy tokens), and opt-in card, SSN and phone detection
+- ✅ **Works locally** - no network calls, no telemetry; adds roughly 20 ms per check
+- ✅ **Zero configuration** - works out of the box, and documentation addresses like `user@example.com` are never flagged
 - ✅ **Toggle rules and manage allowlists** - by hand in `.privacy-guard.json`, or via `npx claude-code-privacy-guard rules` for a local web UI
 
 ## Installation
@@ -34,7 +35,7 @@ A privacy-first plugin for Claude Code that scans prompts for sensitive data and
 >
 > Simply close and reopen Claude Code, or start a new session.
 
-Once restarted, the plugin will automatically scan all prompts before they reach Claude.
+Once restarted, the plugin automatically scans your prompts and Claude's tool calls. To update later, run `/plugin marketplace update datumbrain-plugins` and restart.
 
 ### Rules UI without the plugin (npm)
 
@@ -44,7 +45,7 @@ The rules/allowlist web UI also ships as an npm package, so it can be run withou
 npx claude-code-privacy-guard rules
 ```
 
-> The package is not on the npm registry yet. Until the first publish (tracked in [#39](https://github.com/datumbrain/claude-code-privacy-guard/issues/39)) this command will 404; use the plugin install above, or run `node dist/cli/index.js rules` from a clone.
+> The first npm release (0.3.2) has been submitted and is waiting for npm to make it available (tracked in [#39](https://github.com/datumbrain/claude-code-privacy-guard/issues/39)). Until then this command won't find the package; use the plugin install above, or run `node dist/cli/index.js rules` from a clone.
 
 ## What Gets Detected
 
@@ -73,7 +74,7 @@ npx claude-code-privacy-guard rules
 Plus about 200 service-specific rules converted from [gitleaks](https://github.com/gitleaks/gitleaks)' MIT-licensed ruleset (`data/gitleaks-rules.json`, license in `data/gitleaks-LICENSE`). Like gitleaks, each rule only runs when one of its keywords appears in the text and drops low-entropy matches, which keeps false positives down. See [Managing Rules](#managing-rules) to browse the full list, and `scripts/convert-gitleaks-rules.mjs` to refresh it.
 
 ✅ **Personal Information (PII)**
-- Email addresses
+- Email addresses (except reserved documentation domains - `example.com`, `example.org`, `example.net`, and anything ending in `.test`, `.example`, `.invalid` or `.localhost` - which never belong to a real person, so README and test fixtures don't trip the guard)
 
 Credit card numbers, US Social Security Numbers, and phone numbers are
 detected only when you opt in through the `piiProfile` config option (see
@@ -110,9 +111,11 @@ Both hooks fail open: an internal error never blocks your tools.
 
 ## Example
 
+### A prompt with a secret
+
 **Input:**
 ```
-My API key is sk-proj-abc123xyz and email is john@example.com
+My API key is sk-proj-1234567890abcdefghij and email is john@acme-corp.io
 ```
 
 **Result:**
@@ -120,15 +123,33 @@ My API key is sk-proj-abc123xyz and email is john@example.com
 🛡️ Privacy Guard blocked this prompt
 
 Found 2 sensitive item(s):
-  - OpenAI API Key (openai-api-key): sk-p…3xyz
-  - Email Address (email-address): john….com
+  - OpenAI API Key (openai-api-key): sk-p…ghij
+  - Email Address (email-address): john…p.io
 
 Risk Score: 100/100
 Secrets: 1 | PII: 1
 
 Please remove or anonymize sensitive data before proceeding.
 To disable a rule, add its ID to "disabledRules" in .privacy-guard.json.
+To always allow this exact value, add it to "allowedValues" (or a matching regex to "allowedPatterns") in .privacy-guard.json.
 ```
+
+### Claude trying to read `.env`
+
+**You:** `read .env`
+
+**Claude Code (auto mode):**
+```
+Read(.env)
+  Not run · permission denied
+  Privacy Guard: .env usually holds credentials. Reading it would put them
+  into the conversation. Blocked rather than asked because this session is
+  in "auto" permission mode, where a confirmation prompt would not reach you.
+  To allow it, add the path to "toolGuard.allowedPaths" in .privacy-guard.json,
+  or switch to the default permission mode and retry.
+```
+
+In the default permission mode you get Claude Code's normal permission prompt instead, with the same reason, and you decide.
 
 
 ## Configuration
@@ -147,7 +168,7 @@ file.
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.) or that are marked `"coding": true`; `"all"` loads every external rule. Every bundled gitleaks rule is marked coding, so this only matters for a custom dataset. |
 | `piiProfile` | `{ creditCard?: boolean, ssn?: boolean, phone?: boolean }` | `{}` (all off) | ✅ Implemented. Opt-in PII detectors, each enabled by setting its flag to `true`. Rule IDs are `pii-credit-card`, `pii-ssn` and `pii-phone`, and they can be turned off individually via `disabledRules`. |
 | `toolGuard` | `object` | see below | ✅ Implemented. Tool-call scanning. `enabled` (default `true`); `preToolUse`: `"ask"` (default; becomes `"deny"` in `auto`/`bypassPermissions`/`dontAsk` permission modes, which can't show a prompt), `"deny"` or `"off"`; `postToolUse`: `"warn"` (default) or `"off"`; `sensitivePaths`: extra globs to treat as credentials files; `allowedPaths`: globs never asked about (skips the path check, the content scan, and the after-read warning); `maxScanBytes` (default `200000`). A glob without `/` matches the file name, one with `/` matches the end of the path, and `**` crosses directories. |
-| `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Email domains to allow through the `email-address` rule. An entry matches the exact domain or any subdomain (e.g. `example.com` allows `a@example.com` and `a@mail.example.com`); matching is case-insensitive. |
+| `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Extra email domains to allow through the `email-address` rule, on top of the reserved documentation domains that are always allowed. An entry matches the exact domain or any subdomain (e.g. `acme-corp.io` allows `a@acme-corp.io` and `a@mail.acme-corp.io`); matching is case-insensitive. |
 | `allowedValues` | `string[]` | `[]` | ✅ Implemented. Exact matched values to always allow, from any rule (e.g. a documented example key). Comparison is case-sensitive against the raw matched text. |
 | `allowedPatterns` | `string[]` | `[]` | ✅ Implemented. Regexes; a finding whose matched text satisfies any of these is always allowed, from any rule. Patterns that fail to compile or look prone to catastrophic backtracking are skipped with a console warning. |
 
@@ -162,7 +183,7 @@ Example:
 ```json
 {
   "enabled": true,
-  "allowedDomains": ["example.com"],
+  "allowedDomains": ["acme-corp.io"],
   "allowedValues": [],
   "allowedPatterns": [],
   "disabledRules": [],
@@ -179,7 +200,7 @@ Example:
 
 ## Managing Rules
 
-Every detection rule - built-in and external - has a stable `id` (e.g. `email-address`, `openai-api-key`, `external-slack-api-token`). Blocked prompts now show each finding's ID directly, so you always know what to put in `disabledRules`.
+Every detection rule - built-in and external - has a stable `id` (e.g. `email-address`, `openai-api-key`, `external-slack-bot-token`). Blocked prompts now show each finding's ID directly, so you always know what to put in `disabledRules`.
 
 To manage rules and allowlists without hand-editing the config, run:
 
@@ -194,6 +215,8 @@ This starts a local-only web UI (bound to `127.0.0.1`, never exposed to your net
 - **Allowlists** - add/remove entries for `allowedDomains`, `allowedValues`, and `allowedPatterns`. Regexes are checked for validity and catastrophic backtracking as you type, using the same `safe-regex2` check the scanner applies at load time - so a pattern the UI accepts is one the scanner will actually use, and a rejected pattern never reaches your config.
 
 Every change saves automatically, and only the keys shown in the UI are rewritten - anything else in your `.privacy-guard.json` is preserved as-is.
+
+The UI doesn't have controls for `toolGuard` or `piiProfile` yet; set those in the JSON file (see [Configuration](#configuration)). The UI leaves them untouched.
 
 It edits whichever `.privacy-guard.json` `ConfigLoader.findConfig` would resolve for the directory you run it from: an existing project-level config always wins, but if none exists anywhere up the directory tree it falls back to `~/.privacy-guard.json` - a systemwide default that applies to every project, since Privacy Guard is protecting you, not one repo. Run it from `~` (or any directory with no project-level config) to edit that global default; run it from inside a specific project to create or edit a project-level override instead. The page and console output both tell you which one you're editing.
 
@@ -210,9 +233,14 @@ npm install
 # Build
 npm run build
 
-# Test the scanner directly
+# Test the prompt hook directly
 echo "test sk-proj-abc123" | node scripts/prompt-guard.js
+
+# Test the tool hook directly (prints an "ask" decision)
+echo '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":".env"}}' | node scripts/tool-guard.js
 ```
+
+Claude Code runs a copy of the plugin cached per version under `~/.claude/plugins/cache/`, so local source changes don't affect your installed plugin until you release a new version and update (or load your clone with `claude --plugin-dir .`).
 
 Release:
 ```bash

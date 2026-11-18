@@ -54,7 +54,7 @@ describe('disabled-by-config notice', () => {
     writeFileSync(path.join(cwd, '.privacy-guard.json'), JSON.stringify({ enabled: false }));
 
     const stdout = execFileSync('node', [HOOK], {
-      input: JSON.stringify({ session_id: 'session-d', prompt: 'my email is john.doe@example.com' }),
+      input: JSON.stringify({ session_id: 'session-d', prompt: 'my email is john.doe@acme-corp.io' }),
       cwd,
       env: { ...process.env, XDG_CACHE_HOME: cacheDir },
       encoding: 'utf-8',

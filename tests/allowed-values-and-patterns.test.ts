@@ -53,8 +53,8 @@ describe('allowedPatterns', () => {
   });
 
   test('applies across any rule, not just email-address', () => {
-    const scanner = new PrivacyScanner(emailRule, { allowedPatterns: ['@example\\.com$'] });
-    const result = scanner.scan('user@example.com and user@company.co.uk');
+    const scanner = new PrivacyScanner(emailRule, { allowedPatterns: ['@acme-corp\\.io$'] });
+    const result = scanner.scan('user@acme-corp.io and user@company.co.uk');
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0].match).toBe('user@company.co.uk');
   });
