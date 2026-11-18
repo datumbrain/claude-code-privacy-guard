@@ -2,7 +2,7 @@
  * Configuration loading and management
  */
 
-import { PiiProfile, PrivacyGuardConfig } from '../types/findings.js';
+import { PiiProfile, PrivacyGuardConfig, ToolGuardConfig } from '../types/findings.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -21,6 +21,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'allowedValues',
   'allowedPatterns',
   'piiProfile',
+  'toolGuard',
 ]);
 
 const DEFAULT_CONFIG: PrivacyGuardConfig = {
@@ -31,6 +32,7 @@ const DEFAULT_CONFIG: PrivacyGuardConfig = {
   allowedValues: [],
   allowedPatterns: [],
   piiProfile: {},
+  toolGuard: {},
 };
 
 const PII_PROFILE_KEYS = ['creditCard', 'ssn', 'phone'] as const;
@@ -44,6 +46,31 @@ function normalizePiiProfile(value: unknown): PiiProfile {
     if ((value as Record<string, unknown>)[key] === true) profile[key] = true;
   }
   return profile;
+}
+
+// Keep only well-typed toolGuard fields; anything malformed falls back to the
+// default for that field (see DEFAULT_TOOL_GUARD in hook/tool-guard.ts).
+function normalizeToolGuard(value: unknown): ToolGuardConfig {
+  const out: ToolGuardConfig = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  const v = value as Record<string, unknown>;
+  if (typeof v.enabled === 'boolean') out.enabled = v.enabled;
+  if (v.preToolUse === 'ask' || v.preToolUse === 'deny' || v.preToolUse === 'off') out.preToolUse = v.preToolUse;
+  if (v.postToolUse === 'warn' || v.postToolUse === 'off') out.postToolUse = v.postToolUse;
+  const strings = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string' && s.length > 0) : undefined);
+  const sensitive = strings(v.sensitivePaths);
+  if (sensitive) out.sensitivePaths = sensitive;
+  const allowed = strings(v.allowedPaths);
+  if (allowed) out.allowedPaths = allowed;
+  if (typeof v.maxScanBytes === 'number' && Number.isFinite(v.maxScanBytes) && v.maxScanBytes > 0) {
+    out.maxScanBytes = Math.floor(v.maxScanBytes);
+  }
+  for (const key of Object.keys(v)) {
+    if (!['enabled', 'preToolUse', 'postToolUse', 'sensitivePaths', 'allowedPaths', 'maxScanBytes'].includes(key)) {
+      console.warn(`Privacy Guard: unknown toolGuard key "${key}" - check for a typo`);
+    }
+  }
+  return out;
 }
 
 export class ConfigLoader {
@@ -77,6 +104,7 @@ export class ConfigLoader {
           merged.mode = 'block';
         }
         merged.piiProfile = normalizePiiProfile(merged.piiProfile);
+        merged.toolGuard = normalizeToolGuard(merged.toolGuard);
         return merged;
       }
     } catch (error) {

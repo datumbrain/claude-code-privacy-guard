@@ -6,7 +6,7 @@ import { PrivacyScanner } from '../src/scanner/engine';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../src/scanner/detectors';
 import { DetectionRule } from '../src/types/findings';
 
-const externalRulesPath = path.resolve(process.cwd(), 'data/regex_list_1.json');
+const externalRulesPath = path.resolve(process.cwd(), 'data/gitleaks-rules.json');
 const externalRules = loadExternalRulesFromJson(externalRulesPath, { codingOnly: true });
 const allRules: DetectionRule[] = [...BUILTIN_RULES, ...externalRules];
 

@@ -135,7 +135,7 @@ export function renderPage(
 
     <div class="setting">
       <label class="title" for="setting-external-mode">External rule set</label>
-      <p class="hint">The bundled regex list (data/regex_list_1.json) ships far more patterns than coding secrets. "Coding-only" keeps just the ones relevant to source code and shell input; "All" also enables the broader PII/compliance-oriented patterns.</p>
+      <p class="hint">The bundled ruleset (data/gitleaks-rules.json, converted from gitleaks) is all coding secrets, so both options load every bundled rule. The choice matters for a custom externalRulesJsonPath: "Coding-only" keeps just the entries that mention a coding-secret keyword; "All" loads every entry.</p>
       <select id="setting-external-mode">
         <option value="coding-only">Coding-only</option>
         <option value="all">All</option>

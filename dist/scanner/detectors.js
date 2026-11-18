@@ -16,7 +16,11 @@ export const BUILTIN_RULES = [
         description: 'Detects email addresses that could be PII',
         severity: 'medium',
         category: 'pii',
-        pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+        // The lookbehind lets a match start only at the beginning of a local-part
+        // run, and every quantifier is bounded (RFC 5321 limits: 64 local, 255
+        // domain). The old /\b[...]+@.../ restarted at every character of long
+        // runs like "1-1-1-..." and was quadratic (about 25 s on 200k chars).
+        pattern: /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,8}[A-Za-z]{2,24}(?![A-Za-z0-9-])/g,
         examples: ['user@example.com', 'john.doe@company.co.uk'],
         redactionStrategy: 'semantic',
         enabled: true,
@@ -383,14 +387,17 @@ export function loadExternalRulesFromJson(jsonPath, options = {}) {
             if (!entry?.name || !entry?.regex) {
                 continue;
             }
-            if (codingOnly && !isCodingSecretPattern(entry)) {
+            if (codingOnly && entry.coding !== true && !isCodingSecretPattern(entry)) {
                 continue;
             }
             try {
                 // Ensure regex is compilable before adding, and reject any pattern that
                 // can match the empty string: it would spin the scanner's exec loop
                 // forever and, via the hook timeout, silently disable the guard.
-                if (new RegExp(entry.regex).test('')) {
+                if (entry.flags !== undefined && !/^[imsu]*$/.test(entry.flags)) {
+                    continue;
+                }
+                if (new RegExp(entry.regex, entry.flags ?? '').test('')) {
                     continue;
                 }
             }
@@ -421,6 +428,13 @@ export function loadExternalRulesFromJson(jsonPath, options = {}) {
                 severity: riskToSeverity(Number(entry.risk) || 0),
                 category: sourceCategoryToRuleCategory(entry.category || ''),
                 pattern: entry.regex,
+                ...(entry.flags ? { flags: entry.flags } : {}),
+                ...(typeof entry.entropy === 'number' ? { minEntropy: entry.entropy } : {}),
+                ...(typeof entry.secretGroup === 'number' ? { secretGroup: entry.secretGroup } : {}),
+                ...(entry.secretOnly === true ? { secretOnly: true } : {}),
+                ...(Array.isArray(entry.keywords) && entry.keywords.length > 0
+                    ? { keywords: entry.keywords.filter((k) => typeof k === 'string' && k.length > 0).map((k) => k.toLowerCase()) }
+                    : {}),
                 examples: [entry.name],
                 redactionStrategy: 'token-replace',
                 enabled: true,

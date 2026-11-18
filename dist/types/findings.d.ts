@@ -22,6 +22,35 @@ export interface DetectionRule {
      * capture groups. Not serialized: rules loaded from JSON never have one.
      */
     validate?: (match: string, groups: RegExpExecArray) => boolean;
+    /**
+     * Regex flags for a string `pattern` (e.g. "i"). "g" is always added by the
+     * scanner. Ignored when `pattern` is a RegExp. Serializable, unlike
+     * `validate`, so rules loaded from JSON (and the on-disk rule cache) can
+     * carry it.
+     */
+    flags?: string;
+    /**
+     * Minimum Shannon entropy (bits/char) the secret must have, gitleaks-style.
+     * The secret is capture group `secretGroup` when set, otherwise the first
+     * non-empty capture group, otherwise the whole match. Serializable.
+     */
+    minEntropy?: number;
+    secretGroup?: number;
+    /**
+     * gitleaks-style prefilter: when set, the rule only runs if the scanned text
+     * contains at least one of these (case-insensitive). Cuts false positives
+     * from broad patterns (e.g. a bare 40-hex token rule that only means
+     * anything near "sourcegraph"/"sgp_") and skips most rules on most prompts.
+     * Serializable.
+     */
+    keywords?: string[];
+    /**
+     * Report only the secret (capture group `secretGroup`, else the first
+     * non-empty group) as the finding span, not the whole match. gitleaks
+     * patterns include surrounding context and a terminator such as a closing
+     * quote; without this the redaction would eat that context. Serializable.
+     */
+    secretOnly?: boolean;
 }
 export interface Finding {
     ruleId: string;
@@ -56,6 +85,22 @@ export interface PrivacyGuardConfig {
     allowedValues: string[];
     allowedPatterns: string[];
     piiProfile?: PiiProfile;
+    toolGuard?: ToolGuardConfig;
+}
+/** Tool I/O scanning (PreToolUse / PostToolUse hooks). */
+export interface ToolGuardConfig {
+    /** Master switch for both tool hooks. Default true. */
+    enabled?: boolean;
+    /** What to do before a tool call that would expose secrets. Default "ask". */
+    preToolUse?: 'ask' | 'deny' | 'off';
+    /** What to do when tool output contained secrets. Default "warn". */
+    postToolUse?: 'warn' | 'off';
+    /** Extra sensitive path globs, added to the built-in list. */
+    sensitivePaths?: string[];
+    /** Path globs that are never treated as sensitive. */
+    allowedPaths?: string[];
+    /** Max characters of a file or tool output that get scanned. Default 200000. */
+    maxScanBytes?: number;
 }
 /**
  * Opt-in PII detectors. Every flag defaults to off so the tool stays

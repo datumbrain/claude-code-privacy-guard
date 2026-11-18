@@ -9,7 +9,7 @@
  * Mask a matched secret/PII value down to a short, non-recoverable hint,
  * e.g. "sk-proj-abc123xyz1234567890" -> "sk-p…7890"
  */
-function maskMatch(value) {
+export function maskMatch(value) {
     if (value.length <= 8)
         return '*'.repeat(value.length);
     return `${value.slice(0, 4)}…${value.slice(-4)}`;

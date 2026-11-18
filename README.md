@@ -11,6 +11,7 @@ A privacy-first plugin for Claude Code that scans prompts for sensitive data and
 ## Features
 
 - ✅ **Blocks prompts** containing sensitive data before they're sent to Claude
+- ✅ **Guards tool calls** - asks before Claude reads `.env`, credential files, or a file containing secrets, and before Bash dumps the environment; warns when tool output contained secrets
 - ✅ **Detects** PII, secrets, API keys, tokens, and sensitive information
 - ✅ **Works locally** - all scanning happens on your machine
 - ✅ **Zero configuration** - works out of the box
@@ -69,7 +70,7 @@ npx claude-code-privacy-guard rules
 - Unquoted `.env`-style assignments (`API_KEY=...`, `export SECRET=...`)
 - Unknown-prefix high-entropy tokens that follow a secret keyword (`token:`, `api_key=`, `secret`, `password`, ...). Entropy is never used alone, so git SHAs, UUIDs and hashes without a keyword in front are not flagged. Thresholds live in `ENTROPY_CONFIG` in `src/scanner/entropy.ts`.
 
-Plus a bundled external ruleset (`data/regex_list_1.json`, filterable via `externalRulesMode`) covering many more service-specific tokens - see [Managing Rules](#managing-rules) to browse the full list.
+Plus about 200 service-specific rules converted from [gitleaks](https://github.com/gitleaks/gitleaks)' MIT-licensed ruleset (`data/gitleaks-rules.json`, license in `data/gitleaks-LICENSE`). Like gitleaks, each rule only runs when one of its keywords appears in the text and drops low-entropy matches, which keeps false positives down. See [Managing Rules](#managing-rules) to browse the full list, and `scripts/convert-gitleaks-rules.mjs` to refresh it.
 
 ✅ **Personal Information (PII)**
 - Email addresses
@@ -85,6 +86,8 @@ coding-focused. Each one is validated, not just pattern-matched:
 
 ## How It Works
 
+### Prompts
+
 1. You type a prompt in Claude Code
 2. Privacy Guard intercepts it via a `UserPromptSubmit` hook
 3. Scans for sensitive data using regex patterns
@@ -92,6 +95,18 @@ coding-focused. Each one is validated, not just pattern-matched:
 5. Shows you exactly what was detected
 
 Blocking relies on the `UserPromptSubmit` hook JSON protocol: the hook prints `{"decision": "block", "reason": "..."}` to stdout and exits with code `0`. (Exit code `0` is required for the JSON decision to be honored - a non-zero exit is treated as a non-blocking hook error, and the prompt would go through anyway.) A non-blocking warning uses `{"systemMessage": "..."}` instead, which surfaces the message without stopping the prompt.
+
+### Tool calls
+
+Prompts are only half the leak path: `Read` on `.env`, `cat ~/.aws/credentials`, or grep output full of tokens all put secrets into the conversation too. `scripts/tool-guard.js` handles two more hooks:
+
+- **`PreToolUse`** (`Read`, `Grep`, `Bash`) - the only point where a leak can still be prevented. Privacy Guard asks for your permission (or denies, with `toolGuard.preToolUse: "deny"`) before:
+  - reading or grepping a credentials file: `.env`, `.env.*` (not `.env.example`/`.sample`/`.template`), `*.pem`, `*.key`, `id_rsa`/`id_ed25519`, `.netrc`, `.npmrc`, `.git-credentials`, `.aws/credentials`, `.docker/config.json`, `.kube/config`, `service-account*.json`, and more;
+  - reading any other file whose contents contain a secret (the first `maxScanBytes` of it are scanned with the same rules as prompts);
+  - a Bash command that prints one of those files (`cat .env`, `grep KEY .env`, `< .env`) or dumps the environment (`env`, `printenv`, `export -p`). Commands that use a file without printing it (`source .env`, `ls .env`, `docker run --env-file .env`) are left alone.
+- **`PostToolUse`** (`Read`, `Grep`, `Bash`, `WebFetch`, MCP tools) - scans tool output. Claude Code does not let a hook rewrite a built-in tool's output, so by this point the output is already in context: Privacy Guard shows you what leaked (so you can rotate it) and tells Claude not to repeat the values.
+
+Both hooks fail open: an internal error never blocks your tools.
 
 ## Example
 
@@ -128,16 +143,17 @@ file.
 | `enabled` | `boolean` | `true` | ✅ Implemented. Set to `false` to disable the plugin entirely without uninstalling it. |
 | `mode` | `"block" \| "redact" \| "warn"` | `"block"` | ✅ Implemented. `"block"` rejects the prompt outright. `"redact"` also blocks (the hook API can't rewrite a submitted prompt) but the block reason includes a cleaned, copy-pasteable version of your prompt so you don't have to retype it. `"warn"` lets the prompt through unchanged and shows a non-blocking warning with what was found. See [Block, Redact, or Warn?](#block-redact-or-warn). |
 | `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see [Managing Rules](#managing-rules) below for how to discover and toggle IDs. |
-| `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. Patterns that look prone to catastrophic backtracking are skipped at load time (with a console warning) rather than risking a hang. |
-| `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
+| `externalRulesJsonPath` | `string` | bundled `data/gitleaks-rules.json` | ✅ Implemented. Path (relative to the config file's directory) to a custom external regex dataset, replacing the bundled one. Entries may carry `flags`, `entropy`, `keywords`, `secretGroup` and `secretOnly` (see `data/gitleaks-rules.json` for the format). Patterns that look prone to catastrophic backtracking are skipped at load time (with a console warning) rather than risking a hang. |
+| `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.) or that are marked `"coding": true`; `"all"` loads every external rule. Every bundled gitleaks rule is marked coding, so this only matters for a custom dataset. |
 | `piiProfile` | `{ creditCard?: boolean, ssn?: boolean, phone?: boolean }` | `{}` (all off) | ✅ Implemented. Opt-in PII detectors, each enabled by setting its flag to `true`. Rule IDs are `pii-credit-card`, `pii-ssn` and `pii-phone`, and they can be turned off individually via `disabledRules`. |
+| `toolGuard` | `object` | see below | ✅ Implemented. Tool-call scanning. `enabled` (default `true`); `preToolUse`: `"ask"` (default), `"deny"` or `"off"`; `postToolUse`: `"warn"` (default) or `"off"`; `sensitivePaths`: extra globs to treat as credentials files; `allowedPaths`: globs never asked about (skips both the path check and the content scan); `maxScanBytes` (default `200000`). A glob without `/` matches the file name, one with `/` matches the end of the path, and `**` crosses directories. |
 | `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Email domains to allow through the `email-address` rule. An entry matches the exact domain or any subdomain (e.g. `example.com` allows `a@example.com` and `a@mail.example.com`); matching is case-insensitive. |
 | `allowedValues` | `string[]` | `[]` | ✅ Implemented. Exact matched values to always allow, from any rule (e.g. a documented example key). Comparison is case-sensitive against the raw matched text. |
 | `allowedPatterns` | `string[]` | `[]` | ✅ Implemented. Regexes; a finding whose matched text satisfies any of these is always allowed, from any rule. Patterns that fail to compile or look prone to catastrophic backtracking are skipped with a console warning. |
 
 The vetted external ruleset is cached in
 `${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-privacy-guard/external-rules-cache.json`
-(`%LOCALAPPDATA%` on Windows) and reused until `data/regex_list_1.json`,
+(`%LOCALAPPDATA%` on Windows) and reused until the ruleset file,
 `externalRulesMode`, or the plugin version changes. The cache is best-effort:
 if it can't be read or written, the rules are simply loaded fresh.
 
@@ -150,9 +166,14 @@ Example:
   "allowedValues": [],
   "allowedPatterns": [],
   "disabledRules": [],
-  "externalRulesJsonPath": "./data/regex_list_1.json",
   "externalRulesMode": "coding-only",
-  "piiProfile": { "creditCard": true, "ssn": true, "phone": false }
+  "piiProfile": { "creditCard": true, "ssn": true, "phone": false },
+  "toolGuard": {
+    "preToolUse": "ask",
+    "postToolUse": "warn",
+    "sensitivePaths": ["secrets/**"],
+    "allowedPaths": [".env.test"]
+  }
 }
 ```
 
@@ -207,7 +228,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the
 - ✅ No data is sent to external services
 - ✅ No telemetry or tracking
 - ✅ Open source and fully auditable
-- ✅ The plugin only blocks - it doesn't store or log your sensitive data
+- ✅ The plugin only blocks, asks or warns - it doesn't store or log your sensitive data
 
 ## Block, Redact, or Warn?
 

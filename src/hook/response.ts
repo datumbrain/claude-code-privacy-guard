@@ -18,7 +18,7 @@ export interface HookResponse {
  * Mask a matched secret/PII value down to a short, non-recoverable hint,
  * e.g. "sk-proj-abc123xyz1234567890" -> "sk-p…7890"
  */
-function maskMatch(value: string): string {
+export function maskMatch(value: string): string {
   if (value.length <= 8) return '*'.repeat(value.length);
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
 }

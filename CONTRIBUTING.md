@@ -44,9 +44,23 @@ array. Each rule is a `DetectionRule` (see `src/types/findings.ts`) with an
    data), consider ReDoS safety - avoid nested quantifiers over
    attacker-controlled input.
 
-External regex rules sourced from `data/regex_list_1.json` are loaded
-separately via `loadExternalRulesFromJson` and don't need code changes to
-add - see the README's config reference for how they're filtered.
+External rules live in `data/gitleaks-rules.json`, converted from
+[gitleaks](https://github.com/gitleaks/gitleaks)' MIT-licensed default config
+(license kept in `data/gitleaks-LICENSE`). Don't edit the JSON by hand;
+regenerate it from a pinned gitleaks release:
+
+```bash
+curl -fsSL -o /tmp/gitleaks.toml \
+  https://raw.githubusercontent.com/gitleaks/gitleaks/v8.30.1/config/gitleaks.toml
+npm run build
+node scripts/convert-gitleaks-rules.mjs /tmp/gitleaks.toml data/gitleaks-rules.json
+```
+
+The script translates Go RE2 syntax to JavaScript and drops (with a reason)
+any rule that doesn't compile, fails safe-regex2, matches the empty string,
+or is slow on adversarial input (`src/scanner/regex-audit.ts`). The test
+suite runs the same slow-input audit over every shipped rule, so a regex that
+goes quadratic fails CI.
 
 ## The `dist/` rebuild requirement
 
