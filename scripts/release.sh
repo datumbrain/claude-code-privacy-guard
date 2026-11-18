@@ -97,9 +97,40 @@ if [[ "$confirm_publish" =~ ^[Yy]$ ]]; then
     --generate-notes \
     --latest
   echo "Published: https://github.com/datumbrain/claude-code-privacy-guard/releases/tag/${new_version}"
+  published_release=1
 else
+  published_release=0
   echo "Release commit created locally (not pushed). To publish later, run:"
   echo "  git push && gh release create ${new_version} --title ${new_version} --generate-notes --latest"
+fi
+
+# npm publish is opt-in and defaults to No, so a plain "Enter" through the
+# prompts can never publish by accident (see 0f747a0). It is only offered once
+# the GitHub release exists, so a version on npm always has a matching tag, and
+# it always dry-runs first so the tarball contents are visible before the
+# irreversible step. npm versions cannot be republished or reused after unpublish.
+if [[ "$published_release" == "1" ]]; then
+  read -r -p "Also publish v${new_version} to npm? [y/N]: " confirm_npm
+  if [[ "$confirm_npm" =~ ^[Yy]$ ]]; then
+    if ! npm_user="$(npm whoami 2>/dev/null)"; then
+      echo "Not logged in to npm (run 'npm login'). Skipping npm publish. To publish later, run:"
+      echo "  npm publish"
+    else
+      echo "Logged in to npm as ${npm_user}. Dry run:"
+      npm publish --dry-run
+      read -r -p "Publish claude-code-privacy-guard@${new_version} to npm for real? [y/N]: " confirm_npm_final
+      if [[ "$confirm_npm_final" =~ ^[Yy]$ ]]; then
+        npm publish
+        echo "Published: https://www.npmjs.com/package/claude-code-privacy-guard/v/${new_version}"
+      else
+        echo "npm publish skipped. To publish later, run:"
+        echo "  npm publish"
+      fi
+    fi
+  else
+    echo "Skipping npm publish. To publish later, run:"
+    echo "  npm publish"
+  fi
 fi
 
 echo "Release complete: v${new_version}"
