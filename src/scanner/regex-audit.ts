@@ -37,24 +37,68 @@ export interface ProbeResult {
  * `length` characters and report the slowest one.
  */
 export function probeRegex(pattern: RegExp, length = 20_000): ProbeResult {
-  const flags = pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g';
   let worstMs = 0;
   let shape = '';
   for (const s of PROBE_SHAPES) {
-    const input = s.repeat(Math.ceil(length / s.length));
-    const re = new RegExp(pattern.source, flags);
-    const start = process.hrtime.bigint();
-    let m: RegExpExecArray | null;
-    let guard = 0;
-    while ((m = re.exec(input)) !== null) {
-      if (m[0].length === 0) re.lastIndex += 1;
-      if (++guard > length) break;
-    }
-    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    const ms = timeShape(pattern, s, length);
     if (ms > worstMs) {
       worstMs = ms;
       shape = s;
     }
   }
   return { worstMs, shape };
+}
+
+/** Time one scan of `shape` repeated to `length` characters. */
+function timeShape(pattern: RegExp, shape: string, length: number): number {
+  const flags = pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g';
+  const input = shape.repeat(Math.ceil(length / shape.length));
+  const re = new RegExp(pattern.source, flags);
+  const start = process.hrtime.bigint();
+  let m: RegExpExecArray | null;
+  let guard = 0;
+  while ((m = re.exec(input)) !== null) {
+    if (m[0].length === 0) re.lastIndex += 1;
+    if (++guard > length) break;
+  }
+  return Number(process.hrtime.bigint() - start) / 1e6;
+}
+
+/** Fastest of `runs` timings, which filters out GC pauses and scheduler noise. */
+function minTime(pattern: RegExp, shape: string, length: number, runs = 3): number {
+  let best = Infinity;
+  for (let i = 0; i < runs; i++) best = Math.min(best, timeShape(pattern, shape, length));
+  return best;
+}
+
+export interface GrowthVerdict {
+  quadratic: boolean;
+  shape: string;
+  /** Slowest single probe at the base length, in ms. */
+  worstMs: number;
+  /** Time ratio for a 4x longer input on the slowest shape (about 4 if linear, 16 if quadratic). */
+  ratio?: number;
+}
+
+/**
+ * Decide whether a regex goes quadratic, robustly on slow or noisy machines
+ * (shared CI runners can stall a single run by 100+ ms).
+ *
+ * A fast first pass probes every shape once. Only if the slowest one exceeds
+ * `budgetMs` is that shape re-measured, taking the fastest of several runs at
+ * `length / 2` and `length * 2`. A linear regex grows about 4x over that 4x
+ * input increase; a quadratic one about 16x. Growth above `maxRatio` (with a
+ * meaningful absolute time) is the verdict, not a single slow run.
+ */
+export function checkGrowth(
+  pattern: RegExp,
+  { length = 20_000, budgetMs = 25, maxRatio = 9 }: { length?: number; budgetMs?: number; maxRatio?: number } = {}
+): GrowthVerdict {
+  const first = probeRegex(pattern, length);
+  if (first.worstMs < budgetMs) return { quadratic: false, shape: first.shape, worstMs: first.worstMs };
+
+  const small = minTime(pattern, first.shape, length / 2);
+  const large = minTime(pattern, first.shape, length * 2);
+  const ratio = large / Math.max(small, 0.05);
+  return { quadratic: ratio > maxRatio && large > budgetMs, shape: first.shape, worstMs: first.worstMs, ratio };
 }

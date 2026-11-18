@@ -37,10 +37,16 @@ describe('ConfigLoader mode', () => {
     expect(config.mode).toBe('redact');
   });
 
-  test('falls back to "block" for an invalid mode value', () => {
-    const file = writeConfig({ mode: 'delete-everything' });
-    const config = new ConfigLoader(file).getConfig();
-    expect(config.mode).toBe('block');
+  test('falls back to "block" for an invalid mode value, with a warning', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const file = writeConfig({ mode: 'delete-everything' });
+      const config = new ConfigLoader(file).getConfig();
+      expect(config.mode).toBe('block');
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('invalid "mode" value "delete-everything"'));
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
 
