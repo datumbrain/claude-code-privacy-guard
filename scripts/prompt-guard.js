@@ -11,43 +11,16 @@
  * platform-specific behavior (debug log location, path handling) lives here.
  */
 
-import { PrivacyScanner } from '../dist/scanner/engine.js';
 import { readFileSync, mkdirSync, appendFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { BUILTIN_RULES } from '../dist/scanner/detectors.js';
-import { loadExternalRulesCached } from '../dist/scanner/rule-cache.js';
-import { getPiiRules } from '../dist/scanner/pii.js';
+import { buildScanner, getCacheDir, readPluginVersion } from '../dist/hook/setup.js';
 import { ConfigLoader } from '../dist/config/loader.js';
 import { buildHookResponse } from '../dist/hook/response.js';
 import * as path from 'path';
-import * as os from 'os';
-
-// Plugin version, used to invalidate the compiled-rules cache on upgrade.
-// Falls back to "unknown" (cache still works, it just won't auto-invalidate
-// on upgrade) if package.json can't be read.
-function getPluginVersion() {
-  try {
-    return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version;
-  } catch {
-    return 'unknown';
-  }
-}
 
 // Debug logging is opt-in: set PRIVACY_GUARD_DEBUG=1 to enable. The log only
 // ever holds execution metadata - never matched secret or PII values.
 const DEBUG = process.env.PRIVACY_GUARD_DEBUG === '1';
-
-// Resolve the per-user cache directory in a cross-platform way. On Windows we
-// use %LOCALAPPDATA%; on POSIX we honor XDG_CACHE_HOME, falling back to
-// ~/.cache (matching the path documented in the README).
-function getCacheDir() {
-  if (os.platform() === 'win32') {
-    const base = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    return path.join(base, 'claude-code-privacy-guard');
-  }
-  const base = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
-  return path.join(base, 'claude-code-privacy-guard');
-}
 
 // Append metadata lines to the debug log. Best-effort: debug logging must never
 // affect the prompt flow, so any failure here is swallowed.
@@ -168,33 +141,13 @@ try {
     finish('disabled', 0);
   }
 
-  // Initialize scanner with built-in + external JSON regex rules
-  let externalRulesPath = fileURLToPath(new URL('../data/regex_list_1.json', import.meta.url));
-  if (config.externalRulesJsonPath) {
-    const baseDir = configPath ? path.dirname(configPath) : process.cwd();
-    externalRulesPath = path.resolve(baseDir, config.externalRulesJsonPath);
-  }
-  const codingOnly = (config.externalRulesMode ?? 'coding-only') === 'coding-only';
-  // The vetted external rule set is cached on disk (keyed on the rules file's
-  // content, options and plugin version) so unchanged rules are not re-parsed
-  // and re-vetted on every prompt.
-  const externalRules = loadExternalRulesCached(
-    externalRulesPath,
-    { codingOnly },
-    { cacheDir: getCacheDir(), version: getPluginVersion() }
-  );
-
-  // Honor disabledRules from config for built-in, external and opt-in PII
-  // rules. Opt-in PII detectors (piiProfile) are off unless explicitly enabled.
-  const disabledRules = new Set(config.disabledRules);
-  const scanner = new PrivacyScanner(
-    [...BUILTIN_RULES, ...externalRules, ...getPiiRules(config.piiProfile)].filter((rule) => !disabledRules.has(rule.id)),
-    {
-      allowedDomains: config.allowedDomains,
-      allowedValues: config.allowedValues,
-      allowedPatterns: config.allowedPatterns,
-    }
-  );
+  // Same rules, cache, PII opt-ins, disabledRules and allowlists as the tool guard.
+  const scanner = buildScanner({
+    config,
+    configPath: configPath ?? null,
+    defaultRulesPath: fileURLToPath(new URL('../data/gitleaks-rules.json', import.meta.url)),
+    version: readPluginVersion(fileURLToPath(new URL('../package.json', import.meta.url))),
+  });
 
   // Scan the prompt
   const result = scanner.scan(promptText);

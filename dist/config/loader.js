@@ -17,6 +17,7 @@ const KNOWN_CONFIG_KEYS = new Set([
     'allowedValues',
     'allowedPatterns',
     'piiProfile',
+    'toolGuard',
 ]);
 const DEFAULT_CONFIG = {
     enabled: true,
@@ -26,6 +27,7 @@ const DEFAULT_CONFIG = {
     allowedValues: [],
     allowedPatterns: [],
     piiProfile: {},
+    toolGuard: {},
 };
 const PII_PROFILE_KEYS = ['creditCard', 'ssn', 'phone'];
 // Only a literal `true` enables a detector; anything malformed is treated as
@@ -39,6 +41,36 @@ function normalizePiiProfile(value) {
             profile[key] = true;
     }
     return profile;
+}
+// Keep only well-typed toolGuard fields; anything malformed falls back to the
+// default for that field (see DEFAULT_TOOL_GUARD in hook/tool-guard.ts).
+function normalizeToolGuard(value) {
+    const out = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return out;
+    const v = value;
+    if (typeof v.enabled === 'boolean')
+        out.enabled = v.enabled;
+    if (v.preToolUse === 'ask' || v.preToolUse === 'deny' || v.preToolUse === 'off')
+        out.preToolUse = v.preToolUse;
+    if (v.postToolUse === 'warn' || v.postToolUse === 'off')
+        out.postToolUse = v.postToolUse;
+    const strings = (x) => (Array.isArray(x) ? x.filter((s) => typeof s === 'string' && s.length > 0) : undefined);
+    const sensitive = strings(v.sensitivePaths);
+    if (sensitive)
+        out.sensitivePaths = sensitive;
+    const allowed = strings(v.allowedPaths);
+    if (allowed)
+        out.allowedPaths = allowed;
+    if (typeof v.maxScanBytes === 'number' && Number.isFinite(v.maxScanBytes) && v.maxScanBytes > 0) {
+        out.maxScanBytes = Math.floor(v.maxScanBytes);
+    }
+    for (const key of Object.keys(v)) {
+        if (!['enabled', 'preToolUse', 'postToolUse', 'sensitivePaths', 'allowedPaths', 'maxScanBytes'].includes(key)) {
+            console.warn(`Privacy Guard: unknown toolGuard key "${key}" - check for a typo`);
+        }
+    }
+    return out;
 }
 export class ConfigLoader {
     config;
@@ -67,6 +99,7 @@ export class ConfigLoader {
                     merged.mode = 'block';
                 }
                 merged.piiProfile = normalizePiiProfile(merged.piiProfile);
+                merged.toolGuard = normalizeToolGuard(merged.toolGuard);
                 return merged;
             }
         }

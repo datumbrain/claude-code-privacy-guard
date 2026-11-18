@@ -24,7 +24,7 @@ export async function startRulesServer(): Promise<void> {
   const configLoader = new ConfigLoader(configPath);
   const config = configLoader.getConfig();
 
-  const defaultExternalRulesPath = fileURLToPath(new URL('../../data/regex_list_1.json', import.meta.url));
+  const defaultExternalRulesPath = fileURLToPath(new URL('../../data/gitleaks-rules.json', import.meta.url));
   const externalRulesPath = config.externalRulesJsonPath || defaultExternalRulesPath;
   const externalRules = loadExternalRulesFromJson(externalRulesPath, {
     codingOnly: config.externalRulesMode !== 'all',

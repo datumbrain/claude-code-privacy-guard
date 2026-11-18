@@ -3,6 +3,7 @@
  */
 import { BUILTIN_RULES } from './detectors.js';
 import safeRegex from 'safe-regex2';
+import { shannonEntropy } from './entropy.js';
 // Default cap on how much of the input text is run through the rule engine.
 // Every enabled rule scans the full text, so cost scales with both text
 // length and rule count; bounding the former keeps a single very large
@@ -11,6 +12,42 @@ import safeRegex from 'safe-regex2';
 // dropped, so an oversized prompt still reaches Claude instead of being
 // silently truncated.
 const DEFAULT_MAX_SCAN_LENGTH = 200_000;
+/**
+ * Compile a rule's pattern for scanning. String patterns get the rule's own
+ * `flags` plus "g" and "m" (the historical default); RegExp patterns keep
+ * their flags plus "g".
+ */
+export function compileRulePattern(rule) {
+    if (typeof rule.pattern === 'string') {
+        const flags = new Set(['g', 'm', ...(rule.flags ?? '').split('')]);
+        flags.delete('y');
+        if (rule.secretOnly)
+            flags.add('d');
+        return new RegExp(rule.pattern, [...flags].join(''));
+    }
+    const flags = rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g';
+    return new RegExp(rule.pattern.source, flags);
+}
+function passesEntropy(rule, match) {
+    let secret;
+    if (rule.secretGroup !== undefined) {
+        secret = match[rule.secretGroup];
+    }
+    else {
+        secret = match.slice(1).find((g) => g !== undefined && g.length > 0);
+    }
+    return shannonEntropy(secret ?? match[0]) >= (rule.minEntropy ?? 0);
+}
+/** Index of the capture group holding the secret, or 0 for the whole match. */
+function secretGroupIndex(rule, match) {
+    if (rule.secretGroup !== undefined && match[rule.secretGroup] !== undefined)
+        return rule.secretGroup;
+    for (let i = 1; i < match.length; i++) {
+        if (match[i] !== undefined && match[i].length > 0)
+            return i;
+    }
+    return 0;
+}
 export class PrivacyScanner {
     rules;
     counterMap = new Map();
@@ -91,8 +128,13 @@ export class PrivacyScanner {
         // engine; anything beyond that is reattached untouched below.
         const scannedText = text.length > this.maxScanLength ? text.slice(0, this.maxScanLength) : text;
         const unscannedTail = text.slice(scannedText.length);
-        // Run all enabled rules
+        // Run all enabled rules. Keyword-prefiltered rules are skipped unless one
+        // of their keywords appears in the text.
+        const lowered = scannedText.toLowerCase();
         for (const rule of this.rules) {
+            if (rule.keywords && rule.keywords.length > 0 && !rule.keywords.some((k) => lowered.includes(k))) {
+                continue;
+            }
             const ruleFindings = this.detectWithRule(scannedText, rule);
             findings.push(...ruleFindings);
         }
@@ -126,9 +168,7 @@ export class PrivacyScanner {
      */
     detectWithRule(text, rule) {
         const findings = [];
-        const pattern = typeof rule.pattern === 'string'
-            ? new RegExp(rule.pattern, 'gm')
-            : new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g');
+        const pattern = compileRulePattern(rule);
         let match;
         while ((match = pattern.exec(text)) !== null) {
             const matchText = match[0];
@@ -139,6 +179,9 @@ export class PrivacyScanner {
                 pattern.lastIndex += 1;
                 continue;
             }
+            // Data-driven entropy gate (gitleaks-style rules from JSON).
+            if (rule.minEntropy !== undefined && !passesEntropy(rule, match))
+                continue;
             // Rules with a validator (Luhn, entropy, ...) only keep candidates it
             // accepts. A throwing validator must never break the scan, so it counts
             // as "reject".
@@ -153,15 +196,27 @@ export class PrivacyScanner {
                 if (!accepted)
                     continue;
             }
-            const redactedValue = this.generateRedaction(rule, matchText);
+            // Narrow the span to the secret itself when the rule asks for it.
+            let spanText = matchText;
+            let spanStart = match.index;
+            if (rule.secretOnly) {
+                const g = secretGroupIndex(rule, match);
+                const indices = match.indices;
+                const range = g > 0 ? indices?.[g] : undefined;
+                if (range) {
+                    spanStart = range[0];
+                    spanText = text.slice(range[0], range[1]);
+                }
+            }
+            const redactedValue = this.generateRedaction(rule, spanText);
             findings.push({
                 ruleId: rule.id,
                 title: rule.title,
                 severity: rule.severity,
                 category: rule.category,
-                match: matchText,
-                startIndex: match.index,
-                endIndex: match.index + matchText.length,
+                match: spanText,
+                startIndex: spanStart,
+                endIndex: spanStart + spanText.length,
                 redactedValue,
             });
         }

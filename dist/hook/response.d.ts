@@ -12,6 +12,11 @@ export interface HookResponse {
     systemMessage?: string;
 }
 /**
+ * Mask a matched secret/PII value down to a short, non-recoverable hint,
+ * e.g. "sk-proj-abc123xyz1234567890" -> "sk-p…7890"
+ */
+export declare function maskMatch(value: string): string;
+/**
  * Returns the JSON payload to print for a scan with findings, or null when
  * there is nothing to report (caller should allow the prompt silently).
  */

@@ -44,7 +44,7 @@ describe('loadExternalRulesCached', () => {
   });
 
   test('works on the real bundled ruleset', () => {
-    const real = path.resolve(process.cwd(), 'data/regex_list_1.json');
+    const real = path.resolve(process.cwd(), 'data/gitleaks-rules.json');
     const first = loadExternalRulesCached(real, opts, cache());
     const second = loadExternalRulesCached(real, opts, cache());
     expect(second).toEqual(first);

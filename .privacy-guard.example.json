@@ -8,11 +8,18 @@
   "allowedValues": [],
   "allowedPatterns": [],
   "disabledRules": [],
-  "externalRulesJsonPath": "./data/regex_list_1.json",
   "externalRulesMode": "coding-only",
   "piiProfile": {
     "creditCard": false,
     "ssn": false,
     "phone": false
+  },
+  "toolGuard": {
+    "enabled": true,
+    "preToolUse": "ask",
+    "postToolUse": "warn",
+    "sensitivePaths": [],
+    "allowedPaths": [],
+    "maxScanBytes": 200000
   }
 }

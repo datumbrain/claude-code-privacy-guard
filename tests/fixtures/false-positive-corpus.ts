@@ -3,7 +3,7 @@
  *
  * Every string in CORPUS is a realistic, benign snippet that MUST produce zero
  * findings when scanned with the full default rule set (built-in rules plus the
- * external coding-only rules from data/regex_list_1.json). The corpus pins the
+ * external coding-only rules from data/gitleaks-rules.json). The corpus pins the
  * *current* good behaviour of the scanner: a rule change that starts flagging any
  * of these snippets is a regression and should fail CI.
  *
@@ -121,6 +121,15 @@ export const CORPUS: CorpusGroup[] = [
     ],
   },
   {
+    category: 'former false positives of the old regex_list_1 dataset (dropped with the gitleaks switch)',
+    snippets: [
+      'the field secret_access_key holds your AWS secret',
+      'POST https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      'root:x:0:0:root:/root:/bin/bash',
+      'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDexample user@host',
+    ],
+  },
+  {
     category: 'markdown docs about authentication',
     snippets: [
       '# Authentication\n\nProvide an API key via the `Authorization` header as a Bearer token.',
@@ -151,26 +160,6 @@ export const KNOWN_FALSE_POSITIVES: { snippet: string; firesRuleId: string; note
     snippet: 'OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx',
     firesRuleId: 'openai-api-key',
     note: 'sk- followed by 20+ chars matches even when the chars are placeholder x\'s. Shorter "sk-xxx" prose stays clean.',
-  },
-  {
-    snippet: 'the field secret_access_key holds your AWS secret',
-    firesRuleId: 'external-aws-credentials-context',
-    note: 'external-aws-credentials-context is a bare keyword alternation (access_key_id|secret_access_key|...), so the term alone fires with no value present.',
-  },
-  {
-    snippet: 'POST https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    firesRuleId: 'external-microsoft-office-365-oauth-context',
-    note: 'The rule matches the public OAuth endpoint URL itself, which appears in ordinary documentation.',
-  },
-  {
-    snippet: 'root:x:0:0:root:/root:/bin/bash',
-    firesRuleId: 'external-password-etc-passwd',
-    note: 'A standard /etc/passwd line (no password hash - the x is a shadow reference) is matched by the passwd-file rule.',
-  },
-  {
-    snippet: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDexample user@host',
-    firesRuleId: 'external-ssh-rsa-public',
-    note: 'A PUBLIC ssh-rsa key line is matched; public keys are not secret but the rule flags the format.',
   },
 ];
 

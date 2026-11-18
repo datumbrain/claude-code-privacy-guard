@@ -30,6 +30,12 @@ export interface ScannerOptions {
      */
     maxScanLength?: number;
 }
+/**
+ * Compile a rule's pattern for scanning. String patterns get the rule's own
+ * `flags` plus "g" and "m" (the historical default); RegExp patterns keep
+ * their flags plus "g".
+ */
+export declare function compileRulePattern(rule: DetectionRule): RegExp;
 export declare class PrivacyScanner {
     private rules;
     private counterMap;

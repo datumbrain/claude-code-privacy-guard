@@ -17,7 +17,7 @@ import { loadExternalRulesFromJson } from '../dist/scanner/detectors.js';
 import { loadExternalRulesCached } from '../dist/scanner/rule-cache.js';
 
 const iterations = Number(process.argv[2]) || 50;
-const rulesPath = fileURLToPath(new URL('../data/regex_list_1.json', import.meta.url));
+const rulesPath = fileURLToPath(new URL('../data/gitleaks-rules.json', import.meta.url));
 const cacheDir = mkdtempSync(path.join(tmpdir(), 'pg-bench-'));
 
 function time(fn) {

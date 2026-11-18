@@ -10,8 +10,8 @@ import {
 } from './fixtures/false-positive-corpus';
 
 // Load the full default rule set exactly as rules.test.ts does: built-in rules
-// plus the external coding-only rules from data/regex_list_1.json.
-const externalRulesPath = path.resolve(process.cwd(), 'data/regex_list_1.json');
+// plus the external coding-only rules from data/gitleaks-rules.json.
+const externalRulesPath = path.resolve(process.cwd(), 'data/gitleaks-rules.json');
 const externalRules = loadExternalRulesFromJson(externalRulesPath, { codingOnly: true });
 const allRules: DetectionRule[] = [...BUILTIN_RULES, ...externalRules];
 const scanner = new PrivacyScanner(allRules);

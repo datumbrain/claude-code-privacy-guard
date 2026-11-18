@@ -1,5 +1,5 @@
 {
-  "description": "Privacy Guard hooks for intercepting and redacting sensitive data",
+  "description": "Privacy Guard hooks: scan prompts, and guard tool calls (Read/Grep/Bash) and tool output for secrets",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -7,6 +7,30 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/prompt-guard.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/tool-guard.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read|Grep|Bash|WebFetch|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/tool-guard.js",
             "timeout": 10
           }
         ]
