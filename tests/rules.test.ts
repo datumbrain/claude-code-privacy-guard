@@ -147,6 +147,43 @@ describe('azure-client-secret rule', () => {
   });
 });
 
+describe('env-unquoted-secret-assignment rule', () => {
+  const rule = BUILTIN_RULES.find((r) => r.id === 'env-unquoted-secret-assignment') as DetectionRule;
+  const scanner = new PrivacyScanner([rule]);
+
+  test.each([
+    'API_KEY=hunter2hunter2hunter2live',
+    'export SECRET=abcd1234efgh5678ijkl9012',
+    'DATABASE_PASSWORD=p4ssw0rdLongEnough99',
+    'STRIPE_SECRET_KEY = Zx81kQ92mPaL07vRtY64',
+    'MY_AUTH_TOKEN=a1b2c3d4e5f6g7h8i9j0k1l2',
+  ])('matches unquoted env secret: %s', (line: string) => {
+    const result = scanner.scan(line);
+    expect(result.findings.some((f) => f.ruleId === 'env-unquoted-secret-assignment')).toBe(true);
+  });
+
+  test('matches inside a multi-line .env paste', () => {
+    const result = scanner.scan('PORT=8080\nDEBUG=true\nAPI_KEY=hunter2hunter2hunter2live\nNODE_ENV=production');
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].match).toBe('API_KEY=hunter2hunter2hunter2live');
+  });
+
+  test.each([
+    'DEBUG=true',
+    'PORT=8080',
+    'NODE_ENV=production',
+    'API_KEY=YOUR_API_KEY_HERE',
+    'API_KEY=changeme',
+    'SECRET_KEY=${SECRET_KEY}',
+    'AUTH_TOKEN=$AUTH_TOKEN_VALUE_FROM_CI',
+    'API_KEY="abc1234567890secretvalue"',
+    'DATABASE_URL=postgres',
+    'LOG_LEVEL=debuglevelverbose12345',
+  ])('does not match benign env line: %s', (line: string) => {
+    expect(scanner.scan(line).findings).toHaveLength(0);
+  });
+});
+
 describe('bearer-token rule', () => {
   const bearerRule = BUILTIN_RULES.find((rule) => rule.id === 'bearer-token') as DetectionRule;
   const scanner = new PrivacyScanner([bearerRule]);

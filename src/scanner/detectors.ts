@@ -306,6 +306,22 @@ export const BUILTIN_RULES: DetectionRule[] = [
     enabled: true,
   },
   {
+    id: 'env-unquoted-secret-assignment',
+    title: 'Unquoted Env-Style Secret Assignment',
+    description: 'Detects unquoted .env-style assignments (API_KEY=value, export SECRET=value) whose value looks like a real secret',
+    severity: 'high',
+    category: 'secret',
+    // UPPER_SNAKE name containing a secret-ish word, then an unquoted value of
+    // 16+ chars that must mix letters and digits (the lookaheads). That gate keeps
+    // DEBUG=true, PORT=8080, NODE_ENV=production, API_KEY=YOUR_API_KEY_HERE and
+    // ${VAR} references from matching. Quoted values belong to
+    // generic-code-secret-assignment, so quotes are excluded from the value class.
+    pattern: /(?<![A-Za-z0-9_])(?:export[ \t]+)?[A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?|AUTH)[A-Z0-9_]*[ \t]*=[ \t]*(?=[A-Za-z0-9_\-/+=.]*[A-Za-z])(?=[A-Za-z0-9_\-/+=.]*\d)[A-Za-z0-9_\-/+=.]{16,}(?![A-Za-z0-9_\-/+=.'"`])/g,
+    examples: ['API_KEY=hunter2hunter2hunter2live'],
+    redactionStrategy: 'token-replace',
+    enabled: true,
+  },
+  {
     id: 'private-key',
     title: 'Private Key',
     description: 'Detects SSH and PEM private keys',
