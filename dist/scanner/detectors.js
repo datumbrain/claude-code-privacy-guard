@@ -302,7 +302,10 @@ export const BUILTIN_RULES = [
         // DEBUG=true, PORT=8080, NODE_ENV=production, API_KEY=YOUR_API_KEY_HERE and
         // ${VAR} references from matching. Quoted values belong to
         // generic-code-secret-assignment, so quotes are excluded from the value class.
-        pattern: /(?<![A-Za-z0-9_])(?:export[ \t]+)?[A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?|AUTH)[A-Z0-9_]*[ \t]*=[ \t]*(?=[A-Za-z0-9_\-/+=.]*[A-Za-z])(?=[A-Za-z0-9_\-/+=.]*\d)[A-Za-z0-9_\-/+=.]{16,}(?![A-Za-z0-9_\-/+=.'"`])/g,
+        // Every quantifier is bounded and '=' is excluded from the value (except
+        // trailing base64 padding): unbounded classes made inputs like "KEY=" x 40k
+        // or "A_KEY_" x 30k quadratic (seconds per scan), see the timing tests.
+        pattern: /(?<![A-Za-z0-9_])(?:export[ \t]+)?[A-Z0-9_]{0,40}(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?|AUTH)[A-Z0-9_]{0,40}[ \t]*=[ \t]*(?=[A-Za-z0-9_\-/+.]{0,255}[A-Za-z])(?=[A-Za-z0-9_\-/+.]{0,255}\d)[A-Za-z0-9_\-/+.]{16,256}={0,2}(?![A-Za-z0-9_\-/+=.'"`])/g,
         examples: ['API_KEY=hunter2hunter2hunter2live'],
         redactionStrategy: 'token-replace',
         enabled: true,
