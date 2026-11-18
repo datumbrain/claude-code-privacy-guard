@@ -45,7 +45,7 @@ The rules/allowlist web UI also ships as an npm package, so it can be run withou
 npx claude-code-privacy-guard rules
 ```
 
-> The first npm release (0.3.2) has been submitted and is waiting for npm to make it available (tracked in [#39](https://github.com/datumbrain/claude-code-privacy-guard/issues/39)). Until then this command won't find the package; use the plugin install above, or run `node dist/cli/index.js rules` from a clone.
+From a clone, `node dist/cli/index.js rules` does the same.
 
 ## What Gets Detected
 
