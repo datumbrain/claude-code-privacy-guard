@@ -109,6 +109,18 @@ export const CORPUS: CorpusGroup[] = [
     ],
   },
   {
+    category: 'high-entropy-looking values with no secret keyword, or that are not secrets',
+    snippets: [
+      'the build is pinned to 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b for now',
+      'request id: 550e8400-e29b-41d4-a716-446655440000',
+      'token: 550e8400-e29b-41d4-a716-446655440000',
+      'auth: getAuthenticationTokenFromRequest',
+      'password: aaaaaaaaaaaaaaaaaaaa1',
+      'token: /usr/local/lib/python3.9/site-packages',
+      'checksum 5d41402abc4b2a76b9719d911017c592 matches the download',
+    ],
+  },
+  {
     category: 'markdown docs about authentication',
     snippets: [
       '# Authentication\n\nProvide an API key via the `Authorization` header as a Bearer token.',
@@ -209,6 +221,11 @@ export const CANARIES: { label: string; snippet: string; expectRuleId: string }[
     label: 'unquoted .env secret assignment (secret)',
     snippet: 'API_KEY=hunter2hunter2hunter2live',
     expectRuleId: 'env-unquoted-secret-assignment',
+  },
+  {
+    label: 'unknown-prefix high-entropy token (secret)',
+    snippet: 'token: q8Zx3vL0pRt7NwB2kYh9Fd4JsMa6Ue1C',
+    expectRuleId: 'high-entropy-secret',
   },
   {
     label: 'PEM private key (secret)',

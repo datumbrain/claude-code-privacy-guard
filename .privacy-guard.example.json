@@ -9,5 +9,10 @@
   "allowedPatterns": [],
   "disabledRules": [],
   "externalRulesJsonPath": "./data/regex_list_1.json",
-  "externalRulesMode": "coding-only"
+  "externalRulesMode": "coding-only",
+  "piiProfile": {
+    "creditCard": false,
+    "ssn": false,
+    "phone": false
+  }
 }

@@ -4,6 +4,7 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
 import safeRegex from 'safe-regex2';
+import { ENTROPY_RULE } from './entropy.js';
 /**
  * Built-in detection rules
  * Start with high-value patterns that catch the most dangerous leaks
@@ -317,6 +318,7 @@ export const BUILTIN_RULES = [
         redactionStrategy: 'token-replace',
         enabled: true,
     },
+    ENTROPY_RULE,
 ];
 const CODING_SECRET_KEYWORDS = [
     'api key',

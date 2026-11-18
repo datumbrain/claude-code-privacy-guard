@@ -56,16 +56,22 @@ Once restarted, the plugin will automatically scan all prompts before they reach
 - Bearer tokens
 - SSH and PEM private keys
 - Generic API key/secret/token assignments in code
+- Unquoted `.env`-style assignments (`API_KEY=...`, `export SECRET=...`)
+- Unknown-prefix high-entropy tokens that follow a secret keyword (`token:`, `api_key=`, `secret`, `password`, ...). Entropy is never used alone, so git SHAs, UUIDs and hashes without a keyword in front are not flagged. Thresholds live in `ENTROPY_CONFIG` in `src/scanner/entropy.ts`.
 
 Plus a bundled external ruleset (`data/regex_list_1.json`, filterable via `externalRulesMode`) covering many more service-specific tokens - see [Managing Rules](#managing-rules) to browse the full list.
 
 ✅ **Personal Information (PII)**
 - Email addresses
 
-Phone numbers, Social Security Numbers, and credit card numbers are **not**
-currently detected by the default configuration - see
-[#7](https://github.com/datumbrain/claude-code-privacy-guard/issues/7) for
-tracking status.
+Credit card numbers, US Social Security Numbers, and phone numbers are
+detected only when you opt in through the `piiProfile` config option (see
+[Configuration](#configuration)). They are off by default so the tool stays
+coding-focused. Each one is validated, not just pattern-matched:
+
+- **Credit cards** need a valid Luhn checksum, a real issuer prefix (Visa, Mastercard, Amex, Discover, JCB, Diners) and a matching length.
+- **SSNs** must be dashed (`123-45-6789`) and are rejected for area `000`, `666` or `9xx`, group `00`, or serial `0000`.
+- **Phone numbers** accept E.164 (`+14155552671`) and separated US formats (`(415) 555-2671`, `415-555-2671`), checked against North American numbering rules. Bare 10-digit strings are ignored so order IDs don't match.
 
 ## How It Works
 
@@ -114,9 +120,16 @@ file.
 | `disabledRules` | `string[]` | `[]` | ✅ Implemented. Rule IDs to skip - see [Managing Rules](#managing-rules) below for how to discover and toggle IDs. |
 | `externalRulesJsonPath` | `string` | `./data/regex_list_1.json` | ✅ Implemented. Path (relative to the config file's directory) to the external regex dataset. Patterns that look prone to catastrophic backtracking are skipped at load time (with a console warning) rather than risking a hang. |
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.); `"all"` loads every external rule. |
+| `piiProfile` | `{ creditCard?: boolean, ssn?: boolean, phone?: boolean }` | `{}` (all off) | ✅ Implemented. Opt-in PII detectors, each enabled by setting its flag to `true`. Rule IDs are `pii-credit-card`, `pii-ssn` and `pii-phone`, and they can be turned off individually via `disabledRules`. |
 | `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Email domains to allow through the `email-address` rule. An entry matches the exact domain or any subdomain (e.g. `example.com` allows `a@example.com` and `a@mail.example.com`); matching is case-insensitive. |
 | `allowedValues` | `string[]` | `[]` | ✅ Implemented. Exact matched values to always allow, from any rule (e.g. a documented example key). Comparison is case-sensitive against the raw matched text. |
 | `allowedPatterns` | `string[]` | `[]` | ✅ Implemented. Regexes; a finding whose matched text satisfies any of these is always allowed, from any rule. Patterns that fail to compile or look prone to catastrophic backtracking are skipped with a console warning. |
+
+The vetted external ruleset is cached in
+`${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-privacy-guard/external-rules-cache.json`
+(`%LOCALAPPDATA%` on Windows) and reused until `data/regex_list_1.json`,
+`externalRulesMode`, or the plugin version changes. The cache is best-effort:
+if it can't be read or written, the rules are simply loaded fresh.
 
 Example:
 
@@ -128,7 +141,8 @@ Example:
   "allowedPatterns": [],
   "disabledRules": [],
   "externalRulesJsonPath": "./data/regex_list_1.json",
-  "externalRulesMode": "coding-only"
+  "externalRulesMode": "coding-only",
+  "piiProfile": { "creditCard": true, "ssn": true, "phone": false }
 }
 ```
 

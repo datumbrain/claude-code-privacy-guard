@@ -36,7 +36,11 @@ array. Each rule is a `DetectionRule` (see `src/types/findings.ts`) with an
      for this kind of tool, so negative cases matter as much as positive
      ones
 3. Run `npm test` and confirm both the new cases and the full suite pass.
-4. If the pattern is broad or user-suppliable (e.g. sourced from external
+4. If a regex alone is too loose (checksums, entropy), pair it with the
+   optional `validate(match, groups)` function on the rule: the scanner drops
+   any match it rejects. See `src/scanner/pii.ts` (Luhn, SSN ranges) and
+   `src/scanner/entropy.ts` for examples.
+5. If the pattern is broad or user-suppliable (e.g. sourced from external
    data), consider ReDoS safety - avoid nested quantifiers over
    attacker-controlled input.
 
