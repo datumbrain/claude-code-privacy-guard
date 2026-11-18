@@ -33,7 +33,15 @@ export interface HookInput {
     tool_input?: Record<string, unknown>;
     tool_response?: unknown;
     cwd?: string;
+    /** Session permission mode, e.g. "default", "acceptEdits", "plan", "auto", "bypassPermissions". */
+    permission_mode?: string;
 }
+/**
+ * Permission modes in which Claude Code resolves an "ask" without showing the
+ * user a prompt (auto mode's classifier decides it; bypass and dontAsk never
+ * prompt). An "ask" there protects nothing, so it is escalated to "deny".
+ */
+export declare const NON_INTERACTIVE_PERMISSION_MODES: Set<string>;
 export interface ToolHookOutput {
     systemMessage?: string;
     hookSpecificOutput: {
@@ -47,8 +55,14 @@ export interface ToolHookOutput {
 export type FileReader = (filePath: string, maxBytes: number) => string | null;
 export declare function resolveToolGuardConfig(config: ToolGuardConfig | undefined): Required<ToolGuardConfig>;
 export declare function isSensitivePath(filePath: string, guard: Required<ToolGuardConfig>): boolean;
+/**
+ * Drop heredoc bodies (`<<EOF ... EOF`, `<<'EOF'`, `<<-EOF`), keeping the rest
+ * of the opening line. A heredoc body is data fed to a program - often a
+ * script or test text that merely mentions `.env` - not a file being read.
+ */
+export declare function stripHeredocs(command: string): string;
 /** Why a Bash command looks like it would expose secrets, or null. */
-export declare function bashExposureReason(command: string, guard: Required<ToolGuardConfig>): string | null;
+export declare function bashExposureReason(rawCommand: string, guard: Required<ToolGuardConfig>): string | null;
 export declare function checkPreToolUse(input: HookInput, guard: Required<ToolGuardConfig>, scanner: PrivacyScanner, readFile: FileReader): ToolHookOutput | null;
 /** Concatenate every string inside a tool response, up to `maxBytes`. */
 export declare function collectText(value: unknown, maxBytes: number): string;

@@ -20,6 +20,7 @@ import {
   FileReader,
   isSensitivePath,
   resolveToolGuardConfig,
+  stripHeredocs,
 } from '../src/hook/tool-guard';
 
 const guard = resolveToolGuardConfig(undefined);
@@ -104,8 +105,20 @@ describe('bashExposureReason', () => {
     'git status',
     'cat README.md',
     "grep -r 'process.env' src",
+    // Heredoc bodies are data, not files being read.
+    "python3 - <<'EOF'\nprint('/repo/.env')\nEOF",
+    'cat > notes.md <<EOF\nremember to never cat .env\nEOF',
+    "node -e \"require('dotenv').config({ path: '.env' })\"",
   ])('does not flag %s', (cmd: string) => {
     expect(bashExposureReason(cmd, guard)).toBeNull();
+  });
+
+  test('still flags a real read after a heredoc', () => {
+    expect(bashExposureReason("cat > a.txt <<'EOF'\nhello\nEOF\ncat .env", guard)).not.toBeNull();
+  });
+
+  test('stripHeredocs keeps the rest of the opening line', () => {
+    expect(stripHeredocs("cat <<'EOF' > out.txt\nsecret .env text\nEOF")).toBe('cat   > out.txt');
   });
 });
 
@@ -122,6 +135,45 @@ describe('checkPreToolUse', () => {
   test('denies instead when preToolUse is "deny"', () => {
     const out = pre('Read', { file_path: '/repo/.env' }, resolveToolGuardConfig({ preToolUse: 'deny' }));
     expect(out?.hookSpecificOutput.permissionDecision).toBe('deny');
+  });
+
+  const preIn = (mode: string | undefined, g = guard, read: FileReader = noFiles) =>
+    checkPreToolUse(
+      { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: '/repo/.env' }, cwd: '/repo', permission_mode: mode },
+      g,
+      scanner,
+      read
+    );
+
+  test.each(['auto', 'bypassPermissions', 'dontAsk'])(
+    'escalates "ask" to "deny" in %s mode, where no prompt would reach the user',
+    (mode: string) => {
+      const out = preIn(mode);
+      expect(out?.hookSpecificOutput.permissionDecision).toBe('deny');
+      expect(out?.hookSpecificOutput.permissionDecisionReason).toContain(`"${mode}" permission mode`);
+      expect(out?.hookSpecificOutput.permissionDecisionReason).toMatch(/allowedPaths/);
+    }
+  );
+
+  test.each(['default', 'acceptEdits', 'plan', undefined])('keeps "ask" in %s mode', (mode) => {
+    const out = preIn(mode);
+    expect(out?.hookSpecificOutput.permissionDecision).toBe('ask');
+    expect(out?.hookSpecificOutput.permissionDecisionReason).not.toMatch(/permission mode/);
+  });
+
+  test('allowedPaths still lets a file through in auto mode', () => {
+    expect(preIn('auto', resolveToolGuardConfig({ allowedPaths: ['.env'] }), () => 'API_KEY=x')).toBeNull();
+  });
+
+  test('gives the allowedPaths hint once when escalating a content finding', () => {
+    const out = checkPreToolUse(
+      { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: 'a.js' }, cwd: '/repo', permission_mode: 'auto' },
+      guard,
+      scanner,
+      () => `const k = "${['ghp', 'abcdefghijklmnopqrstuvwxyz1234567890'].join('_')}";`
+    );
+    expect(out?.hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(out?.hookSpecificOutput.permissionDecisionReason?.match(/allowedPaths/g)).toHaveLength(1);
   });
 
   test('does nothing when preToolUse is "off" or the guard is disabled', () => {
@@ -169,6 +221,20 @@ describe('checkPostToolUse', () => {
     expect(out?.systemMessage).toMatch(/rotat/i);
     expect(out?.hookSpecificOutput.additionalContext).toMatch(/Do not repeat/);
     expect(out?.systemMessage).not.toMatch(/AKIAIOSFODNN7EXAMPLE/);
+  });
+
+  test('stays quiet for a Read of an allowed path', () => {
+    const out = checkPostToolUse(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Read',
+        tool_input: { file_path: '/repo/tests/fixture.ts' },
+        tool_response: { file: { content: 'AKIAIOSFODNN7EXAMPLE' } },
+      },
+      resolveToolGuardConfig({ allowedPaths: ['tests/**'] }),
+      scanner
+    );
+    expect(out).toBeNull();
   });
 
   test('stays quiet for clean output and when off', () => {
