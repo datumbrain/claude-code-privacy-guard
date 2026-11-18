@@ -83,7 +83,16 @@ export interface HookInput {
   tool_input?: Record<string, unknown>;
   tool_response?: unknown;
   cwd?: string;
+  /** Session permission mode, e.g. "default", "acceptEdits", "plan", "auto", "bypassPermissions". */
+  permission_mode?: string;
 }
+
+/**
+ * Permission modes in which Claude Code resolves an "ask" without showing the
+ * user a prompt (auto mode's classifier decides it; bypass and dontAsk never
+ * prompt). An "ask" there protects nothing, so it is escalated to "deny".
+ */
+export const NON_INTERACTIVE_PERMISSION_MODES = new Set(['auto', 'bypassPermissions', 'dontAsk']);
 
 export interface ToolHookOutput {
   systemMessage?: string;
@@ -157,11 +166,24 @@ const READERS = new Set([
   'cat', 'tac', 'nl', 'less', 'more', 'head', 'tail', 'bat', 'batcat', 'view',
   'grep', 'egrep', 'fgrep', 'rg', 'ag', 'awk', 'gawk', 'sed', 'cut', 'sort', 'uniq',
   'xxd', 'hexdump', 'od', 'strings', 'base64', 'jq', 'yq', 'diff', 'type', 'get-content',
-  'openssl', 'python', 'python3', 'node',
+  'openssl',
 ]);
 
+/**
+ * Drop heredoc bodies (`<<EOF ... EOF`, `<<'EOF'`, `<<-EOF`), keeping the rest
+ * of the opening line. A heredoc body is data fed to a program - often a
+ * script or test text that merely mentions `.env` - not a file being read.
+ */
+export function stripHeredocs(command: string): string {
+  return command.replace(
+    /<<-?[ \t]*(['"]?)([A-Za-z_][\w-]*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g,
+    ' $3'
+  );
+}
+
 /** Why a Bash command looks like it would expose secrets, or null. */
-export function bashExposureReason(command: string, guard: Required<ToolGuardConfig>): string | null {
+export function bashExposureReason(rawCommand: string, guard: Required<ToolGuardConfig>): string | null {
+  const command = stripHeredocs(rawCommand);
   if (ENV_DUMP.test(command)) return 'dumps environment variables';
   const tokens = shellTokens(command);
   const readsFiles =
@@ -187,7 +209,14 @@ function findingsSummary(result: ScanResult, limit = 10): string {
   return lines.join('\n');
 }
 
-function preDecision(decision: 'ask' | 'deny', reason: string): ToolHookOutput {
+function preDecision(decision: 'ask' | 'deny', reason: string, escalatedFrom?: string): ToolHookOutput {
+  if (escalatedFrom) {
+    reason +=
+      ` Blocked rather than asked because this session is in "${escalatedFrom}" permission mode, where a confirmation prompt would not reach you.` +
+      (reason.includes('allowedPaths')
+        ? ' Or switch to the default permission mode and retry.'
+        : ' To allow it, add the path to "toolGuard.allowedPaths" in .privacy-guard.json, or switch to the default permission mode and retry.');
+  }
   return {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
@@ -206,18 +235,24 @@ export function checkPreToolUse(
   readFile: FileReader
 ): ToolHookOutput | null {
   if (!guard.enabled || guard.preToolUse === 'off') return null;
-  const decision = guard.preToolUse;
+  // "ask" only works if the user will actually see the prompt.
+  const escalatedFrom =
+    guard.preToolUse === 'ask' && input.permission_mode && NON_INTERACTIVE_PERMISSION_MODES.has(input.permission_mode)
+      ? input.permission_mode
+      : undefined;
+  const decision = escalatedFrom ? 'deny' : guard.preToolUse;
+  const decide = (reason: string): ToolHookOutput => preDecision(decision, reason, escalatedFrom);
   const toolInput = input.tool_input ?? {};
   const cwd = typeof input.cwd === 'string' ? input.cwd : process.cwd();
 
   if (input.tool_name === 'Bash' && typeof toolInput.command === 'string') {
     const why = bashExposureReason(toolInput.command, guard);
-    return why ? preDecision(decision, `this command ${why}, which would put secrets into the conversation.`) : null;
+    return why ? decide(`this command ${why}, which would put secrets into the conversation.`) : null;
   }
 
   if (input.tool_name === 'Grep' && typeof toolInput.path === 'string') {
     return isSensitivePath(toolInput.path, guard)
-      ? preDecision(decision, `searching ${toolInput.path} would put secrets into the conversation.`)
+      ? decide(`searching ${toolInput.path} would put secrets into the conversation.`)
       : null;
   }
 
@@ -226,14 +261,13 @@ export function checkPreToolUse(
     // An explicitly allowed path skips both the path check and the content scan.
     if (matchesAny(filePath, guard.allowedPaths)) return null;
     if (isSensitivePath(filePath, guard)) {
-      return preDecision(decision, `${filePath} usually holds credentials. Reading it would put them into the conversation.`);
+      return decide(`${filePath} usually holds credentials. Reading it would put them into the conversation.`);
     }
     const content = readFile(path.resolve(cwd, filePath), guard.maxScanBytes);
     if (content === null) return null;
     const result = scanner.scan(content);
     if (result.findings.length === 0) return null;
-    return preDecision(
-      decision,
+    return decide(
       `${filePath} contains ${result.findings.length} sensitive item(s). Reading it would put them into the conversation:\n${findingsSummary(result)}\n` +
         'Add the path to "toolGuard.allowedPaths" in .privacy-guard.json to stop asking for it.'
     );
@@ -270,6 +304,9 @@ export function checkPostToolUse(
   scanner: PrivacyScanner
 ): ToolHookOutput | null {
   if (!guard.enabled || guard.postToolUse === 'off') return null;
+  // A file the user explicitly allowed is not worth a warning after the fact.
+  const filePath = input.tool_input?.file_path ?? input.tool_input?.path;
+  if (typeof filePath === 'string' && matchesAny(filePath, guard.allowedPaths)) return null;
   const text = collectText(input.tool_response, guard.maxScanBytes);
   if (!text) return null;
   const result = scanner.scan(text);
