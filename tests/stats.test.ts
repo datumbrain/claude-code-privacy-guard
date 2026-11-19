@@ -66,7 +66,8 @@ describe('prompt hook integration', () => {
       execFileSync('node', [HOOK], {
         input: JSON.stringify({ session_id: 'sess-1', prompt }),
         cwd,
-        env: { ...process.env, XDG_CACHE_HOME: cacheDir },
+        // getCacheDir() reads LOCALAPPDATA on Windows and XDG_CACHE_HOME elsewhere.
+        env: { ...process.env, XDG_CACHE_HOME: cacheDir, LOCALAPPDATA: cacheDir },
         stdio: ['pipe', 'pipe', 'ignore'],
       });
     } catch {
