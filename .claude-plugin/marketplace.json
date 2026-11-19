@@ -9,7 +9,7 @@
       "name": "claude-code-privacy-guard",
       "source": "./",
       "description": "Privacy guard plugin for Claude Code - stops secrets and PII from reaching the AI through prompts, tool calls, files and tool output",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "repository": "https://github.com/datumbrain/claude-code-privacy-guard"
     }
   ]
