@@ -16,6 +16,7 @@ import { fileURLToPath } from 'url';
 import { buildScanner, getCacheDir, readPluginVersion } from '../dist/hook/setup.js';
 import { ConfigLoader } from '../dist/config/loader.js';
 import { buildHookResponse } from '../dist/hook/response.js';
+import { recordPrompt } from '../dist/hook/stats.js';
 import * as path from 'path';
 
 // Debug logging is opt-in: set PRIVACY_GUARD_DEBUG=1 to enable. The log only
@@ -151,6 +152,9 @@ try {
 
   // Scan the prompt
   const result = scanner.scan(promptText);
+
+  // Count what was caught (counts by category/rule only, never values).
+  recordPrompt(getCacheDir(), extractSessionId(rawStdin), result);
 
   // React to findings per the configured mode: "block" (default) rejects the
   // prompt outright, "redact" also blocks (the hook API can't rewrite the

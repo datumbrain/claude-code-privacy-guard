@@ -284,6 +284,12 @@ type "$env:LOCALAPPDATA\claude-code-privacy-guard\debug.log"
 
 The log only contains execution metadata (timestamp, plugin root, working directory, Node version, exit path/code) - it never contains matched secret or PII values.
 
+## Detection stats
+
+The prompt hook keeps a local count of what it has caught in `stats.json`, next to the debug log (`${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-privacy-guard/` on macOS/Linux, `%LOCALAPPDATA%\claude-code-privacy-guard\` on Windows).
+
+It holds a `global` total plus one entry per Claude Code `session_id`, each with `totalPrompts`, `totalFindings`, and counts `byCategory` and `byRule`. Session entries idle for more than 30 days are pruned. Only counts are stored, never matched values or prompt text, and nothing leaves your machine. Prompts scanned while `enabled` is `false` are not counted.
+
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for dev setup, how to add a detection rule, and the release process.
