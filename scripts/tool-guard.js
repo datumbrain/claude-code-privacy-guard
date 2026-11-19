@@ -17,7 +17,7 @@
  * src/hook/tool-guard.ts.
  */
 
-import { readFileSync, openSync, readSync, closeSync, fstatSync, mkdirSync, appendFileSync } from 'fs';
+import { readFileSync, openSync, readSync, closeSync, fstatSync, statSync, mkdirSync, appendFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import * as path from 'path';
 import { ConfigLoader } from '../dist/config/loader.js';
@@ -43,6 +43,9 @@ function debugLog(line) {
 function readFilePrefix(filePath, maxBytes) {
   let fd;
   try {
+    // Check before opening: opening a FIFO blocks until a writer appears,
+    // which would hang the hook until its timeout.
+    if (!statSync(filePath).isFile()) return null;
     fd = openSync(filePath, 'r');
     if (!fstatSync(fd).isFile()) return null;
     const buf = Buffer.alloc(maxBytes);
@@ -80,6 +83,7 @@ try {
     configPath: configPath ?? null,
     defaultRulesPath: fileURLToPath(new URL('../data/gitleaks-rules.json', import.meta.url)),
     version: readPluginVersion(fileURLToPath(new URL('../package.json', import.meta.url))),
+    maxScanLength: guard.maxScanBytes,
   });
 
   let output = null;

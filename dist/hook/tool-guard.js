@@ -40,10 +40,12 @@ export const DEFAULT_SENSITIVE_PATHS = [
     '*.pfx',
     '*.jks',
     '*.keystore',
-    'id_rsa',
-    'id_dsa',
-    'id_ecdsa',
-    'id_ed25519',
+    // Also custom-named keys (id_rsa_work, id_ed25519_github); the matching
+    // public keys are let through by "*.pub" in DEFAULT_ALLOWED_PATHS.
+    'id_rsa*',
+    'id_dsa*',
+    'id_ecdsa*',
+    'id_ed25519*',
     '.netrc',
     '_netrc',
     '.pgpass',
@@ -68,6 +70,9 @@ export const DEFAULT_ALLOWED_PATHS = [
     '.env.template',
     '.env.dist',
     '.env.defaults',
+    '.env.*.example',
+    '.env.*.sample',
+    '.env.*.template',
     '*.pub',
 ];
 /**
@@ -80,11 +85,20 @@ export function resolveToolGuardConfig(config) {
     return { ...DEFAULT_TOOL_GUARD, ...(config ?? {}) };
 }
 // --- path matching ---------------------------------------------------------
-function globToRegExp(glob) {
+function globToRegExp(rawGlob) {
+    // "./x" means x relative to the project, which is how every other relative
+    // glob is already matched (against the end of the path).
+    const glob = rawGlob.replace(/^(?:\.\/)+/, '');
     let re = '';
     for (let i = 0; i < glob.length; i++) {
         const ch = glob[i];
-        if (ch === '*' && glob[i + 1] === '*') {
+        if (ch === '*' && glob[i + 1] === '*' && glob[i + 2] === '/') {
+            // "**/" matches zero or more directories, so "**/secrets/*" also
+            // matches a top-level "secrets/a".
+            re += '(?:.*/)?';
+            i += 2;
+        }
+        else if (ch === '*' && glob[i + 1] === '*') {
             re += '.*';
             i++;
         }
@@ -105,7 +119,7 @@ function matchesAny(filePath, globs) {
     const base = normalized.split('/').pop() ?? normalized;
     return globs.some((glob) => {
         const re = globToRegExp(glob);
-        return glob.includes('/') ? re.test(normalized) : re.test(base);
+        return glob.replace(/^(?:\.\/)+/, '').includes('/') ? re.test(normalized) : re.test(base);
     });
 }
 export function isSensitivePath(filePath, guard) {
@@ -115,26 +129,288 @@ export function isSensitivePath(filePath, guard) {
         return false;
     return matchesAny(filePath, [...DEFAULT_SENSITIVE_PATHS, ...guard.sensitivePaths]);
 }
+/**
+ * Whether a shell or Grep glob such as ".env*", "id_*" or "*.pem" could
+ * expand to a sensitive file name. The file name part of the glob is tested
+ * against sample names built from the sensitive file-name globs. A glob that
+ * starts with "*" is only tested against the extension-style samples
+ * ("*.pem" -> "x.pem"), so broad globs like "*.json" or "*" are not flagged
+ * just because "credentials.json" would match them.
+ */
+export function globCouldMatchSensitive(glob, guard) {
+    const base = glob.replace(/\\/g, '/').split('/').pop() ?? glob;
+    if (!/[*?]/.test(base))
+        return false;
+    // "*", "*.*", "??" - every file in a directory; too broad to call a read
+    // of credentials (and shell "*" skips dotfiles such as .env anyway).
+    if (/^[*?]+(?:\.[*?]+)?$/.test(base))
+        return false;
+    const re = globToRegExp(base);
+    const leadingWildcard = /^[*?]/.test(base);
+    return [...DEFAULT_SENSITIVE_PATHS, ...guard.sensitivePaths]
+        .filter((g) => !g.includes('/') && (!leadingWildcard || g.startsWith('*')))
+        .map((g) => g.replace(/[*?]/g, 'x'))
+        .some((sample) => re.test(sample) && isSensitivePath(sample, guard));
+}
 // --- bash command analysis -------------------------------------------------
-const ENV_DUMP = /(?:^|[;&|(]\s*|\$\(\s*|`\s*)(?:sudo\s+)?(?:printenv|env|export\s+-p|declare\s+-x|set)\s*(?:$|[;&|)`>])/m;
-/** Split a shell command into word-ish tokens (quotes stripped). Not a full parser. */
-function shellTokens(command) {
-    const tokens = [];
-    const re = /"([^"]*)"|'([^']*)'|([^\s;&|<>()`]+)/g;
-    let m;
-    while ((m = re.exec(command)) !== null)
-        tokens.push(m[1] ?? m[2] ?? m[3]);
-    return tokens;
+const ENV_DUMP = /(?:^|[;&|(]\s*|\$\(\s*|`\s*)(?:sudo\s+)?(?:printenv|env|export|export\s+-p|declare\s+-[px]|typeset\s+-[px]|set)\s*(?:$|[;&|)`>])/m;
+/**
+ * Split a shell command into simple commands. Not a full parser, but it
+ * honors quoting and escapes, splits on ; & | && || newlines, parentheses and
+ * backticks, and tells input redirections (`< .env`) apart from output ones
+ * (`> .env`, `2>&1`, `&>> log`), which write a file rather than print it.
+ * Command substitutions inside double quotes ("$(cat .env)") are parsed as
+ * commands of their own.
+ */
+export function parseShellSegments(command, depth = 0) {
+    const segments = [];
+    const nested = [];
+    let seg = { words: [], inputs: [] };
+    let word = '';
+    let inWord = false;
+    // What the next completed word is: an input file, an output file or
+    // heredoc/herestring data to drop, or (null) an ordinary word.
+    let pending = null;
+    const endWord = () => {
+        if (inWord) {
+            if (pending === 'in')
+                seg.inputs.push(word);
+            else if (pending === null)
+                seg.words.push(word);
+            pending = null;
+        }
+        word = '';
+        inWord = false;
+    };
+    const endSegment = () => {
+        endWord();
+        pending = null;
+        if (seg.words.length > 0 || seg.inputs.length > 0)
+            segments.push(seg);
+        seg = { words: [], inputs: [] };
+    };
+    const isFd = () => inWord && /^\d+$/.test(word);
+    for (let i = 0; i < command.length; i++) {
+        const ch = command[i];
+        const next = command[i + 1];
+        if (ch === "'") {
+            const close = command.indexOf("'", i + 1);
+            const stop = close === -1 ? command.length : close;
+            word += command.slice(i + 1, stop);
+            inWord = true;
+            i = stop;
+        }
+        else if (ch === '"') {
+            let j = i + 1;
+            let quoted = '';
+            while (j < command.length && command[j] !== '"') {
+                if (command[j] === '\\' && j + 1 < command.length && '$`"\\\n'.includes(command[j + 1])) {
+                    quoted += command[j + 1];
+                    j += 2;
+                }
+                else {
+                    quoted += command[j++];
+                }
+            }
+            if (/\$\(|`/.test(quoted))
+                nested.push(quoted.replace(/^[^$`]*/, ''));
+            word += quoted;
+            inWord = true;
+            i = j;
+        }
+        else if (ch === '\\') {
+            if (next === '\n') {
+                i++;
+            }
+            else if (next !== undefined) {
+                word += next;
+                inWord = true;
+                i++;
+            }
+        }
+        else if (ch === ' ' || ch === '\t') {
+            endWord();
+        }
+        else if (ch === '\n' || ch === ';' || ch === '(' || ch === ')' || ch === '`') {
+            endSegment();
+        }
+        else if (ch === '|') {
+            endSegment();
+            if (next === '|' || next === '&')
+                i++;
+        }
+        else if (ch === '&') {
+            if (next === '>') {
+                // &> file, &>> file
+                endWord();
+                i++;
+                if (command[i + 1] === '>')
+                    i++;
+                pending = 'drop';
+            }
+            else {
+                endSegment();
+                if (next === '&')
+                    i++;
+            }
+        }
+        else if (ch === '>') {
+            if (isFd()) {
+                word = '';
+                inWord = false;
+            }
+            else {
+                endWord();
+            }
+            if (next === '>' || next === '|')
+                i++;
+            if (command[i + 1] === '&') {
+                // >&2, 2>&1, >&- duplicate a descriptor; ">& file" writes a file.
+                i++;
+                const fd = /^\s*(?:\d+|-)/.exec(command.slice(i + 1));
+                if (fd)
+                    i += fd[0].length;
+                else
+                    pending = 'drop';
+            }
+            else {
+                pending = 'drop';
+            }
+        }
+        else if (ch === '<') {
+            if (isFd()) {
+                word = '';
+                inWord = false;
+            }
+            else {
+                endWord();
+            }
+            if (next === '<') {
+                // <<EOF, <<-EOF (heredoc delimiter) and <<<"text" (herestring data).
+                i++;
+                if (command[i + 1] === '<' || command[i + 1] === '-')
+                    i++;
+                pending = 'drop';
+            }
+            else if (next === '(') {
+                // Process substitution: the "(" starts a nested command.
+            }
+            else {
+                if (next === '>')
+                    i++;
+                pending = 'in';
+            }
+        }
+        else {
+            word += ch;
+            inWord = true;
+        }
+    }
+    endSegment();
+    if (depth < 3)
+        for (const inner of nested)
+            segments.push(...parseShellSegments(inner, depth + 1));
+    return segments;
 }
 // Commands that print (part of) a file's contents. A sensitive path only
-// counts when one of these is in the command, so `source .env`, `ls .env`,
+// counts in a command that runs one of these, so `source .env`, `ls .env`,
 // `cp .env.example .env` or `docker run --env-file .env` don't trigger.
 const READERS = new Set([
     'cat', 'tac', 'nl', 'less', 'more', 'head', 'tail', 'bat', 'batcat', 'view',
-    'grep', 'egrep', 'fgrep', 'rg', 'ag', 'awk', 'gawk', 'sed', 'cut', 'sort', 'uniq',
+    'grep', 'egrep', 'fgrep', 'zgrep', 'rg', 'ag', 'ack', 'awk', 'gawk', 'sed', 'cut', 'sort', 'uniq',
     'xxd', 'hexdump', 'od', 'strings', 'base64', 'jq', 'yq', 'diff', 'type', 'get-content',
     'openssl',
 ]);
+// Prefixes that run the next word as the command.
+const COMMAND_WRAPPERS = new Set(['sudo', 'command', 'exec', 'nohup', 'time', 'nice', 'env', 'xargs']);
+const GREP_SPEC = {
+    valueOptions: new Set(['-A', '-B', '-C', '-m', '-d', '-D', '--max-count', '--context', '--after-context', '--before-context', '--include', '--exclude', '--exclude-dir', '-f', '--file']),
+    patternOptions: new Set(['-e', '--regexp', '-f', '--file']),
+};
+const RG_SPEC = {
+    valueOptions: new Set(['-A', '-B', '-C', '-m', '-g', '-t', '-T', '-M', '-j', '-f', '--glob', '--iglob', '--type', '--type-not', '--max-count', '--context', '--after-context', '--before-context', '--file']),
+    patternOptions: new Set(['-e', '--regexp', '-f', '--file']),
+};
+const PATTERN_FIRST = {
+    grep: GREP_SPEC,
+    egrep: GREP_SPEC,
+    fgrep: GREP_SPEC,
+    zgrep: GREP_SPEC,
+    ag: GREP_SPEC,
+    ack: GREP_SPEC,
+    rg: RG_SPEC,
+    sed: { valueOptions: new Set(['-e', '-f', '-l', '--expression', '--file']), patternOptions: new Set(['-e', '-f', '--expression', '--file']) },
+    awk: { valueOptions: new Set(['-F', '-v', '-f']), patternOptions: new Set(['-f']) },
+    gawk: { valueOptions: new Set(['-F', '-v', '-f']), patternOptions: new Set(['-f']) },
+    jq: {
+        valueOptions: new Set(['-L', '--indent', '-f', '--from-file']),
+        patternOptions: new Set(['-f', '--from-file']),
+        pairOptions: new Set(['--arg', '--argjson', '--slurpfile', '--rawfile']),
+    },
+    yq: { valueOptions: new Set(['-I', '--indent', '-o', '--output-format', '-p', '--input-format']), patternOptions: new Set() },
+};
+const PATTERN_FILE_OPTIONS = new Set(['-f', '--file', '--from-file']);
+const baseName = (word) => (word.replace(/\\/g, '/').split('/').pop() ?? word).toLowerCase();
+/**
+ * Indexes of the words in a segment that are a search pattern or script
+ * (and so are not files), e.g. ".env" in `grep -rn ".env" src`.
+ */
+function patternWordIndexes(words) {
+    const skip = new Set();
+    let k = 0;
+    while (k < words.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[k]) || COMMAND_WRAPPERS.has(baseName(words[k]))))
+        k++;
+    let name = baseName(words[k] ?? '');
+    let start = k + 1;
+    if (name === 'git' && words[k + 1] === 'grep') {
+        name = 'grep';
+        start = k + 2;
+    }
+    const spec = PATTERN_FIRST[name];
+    if (!spec)
+        return skip;
+    // An option that names the pattern (grep -e PAT) means no operand is one.
+    const optionName = (w) => (/^-[A-Za-z]+$/.test(w) ? `-${w.slice(-1)}` : w.split('=')[0]);
+    const explicit = words.slice(start).some((w) => w.startsWith('-') && spec.patternOptions.has(optionName(w)));
+    let operandsOnly = false;
+    for (let i = start; i < words.length; i++) {
+        const w = words[i];
+        if (!operandsOnly && w === '--') {
+            operandsOnly = true;
+            continue;
+        }
+        if (!operandsOnly && w.startsWith('-') && w.length > 1) {
+            const opt = optionName(w);
+            const attached = w.includes('=') || /^-[A-Za-z]+\d/.test(w);
+            if (attached)
+                continue;
+            if (spec.pairOptions?.has(opt)) {
+                i += 2;
+            }
+            else if (spec.valueOptions.has(opt) || spec.patternOptions.has(opt)) {
+                // A pattern given through -e/--regexp is not a file either; a pattern
+                // *file* (-f) still is.
+                if (spec.patternOptions.has(opt) && !PATTERN_FILE_OPTIONS.has(opt))
+                    skip.add(i + 1);
+                i += 1;
+            }
+            continue;
+        }
+        if (!explicit)
+            skip.add(i);
+        break;
+    }
+    return skip;
+}
+/** The file a word names, for the sensitive-path check (`--env-file=.env` -> `.env`). */
+function wordAsPath(word) {
+    const candidate = word.includes('=') ? word.slice(word.lastIndexOf('=') + 1) : word;
+    return candidate.replace(/^~(?=\/)/, '$HOME');
+}
+function isSensitiveWord(word, guard) {
+    const p = wordAsPath(word);
+    return isSensitivePath(p, guard) || globCouldMatchSensitive(p, guard);
+}
 /**
  * Drop heredoc bodies (`<<EOF ... EOF`, `<<'EOF'`, `<<-EOF`), keeping the rest
  * of the opening line. A heredoc body is data fed to a program - often a
@@ -148,17 +424,17 @@ export function bashExposureReason(rawCommand, guard) {
     const command = stripHeredocs(rawCommand);
     if (ENV_DUMP.test(command))
         return 'dumps environment variables';
-    const tokens = shellTokens(command);
-    const readsFiles = /<\s*[^<\s]/.test(command.replace(/<<-?\s*\S+/g, '')) ||
-        tokens.some((t) => READERS.has((t.split('/').pop() ?? t).toLowerCase()));
-    if (!readsFiles)
-        return null;
-    for (const token of tokens) {
-        // Strip redirection/assignment prefixes like `<.env` or `--env-file=.env`.
-        const candidate = token.includes('=') ? token.slice(token.lastIndexOf('=') + 1) : token;
-        const expanded = candidate.replace(/^~(?=\/)/, '$HOME');
-        if (isSensitivePath(expanded, guard))
-            return `reads sensitive file ${candidate}`;
+    for (const seg of parseShellSegments(command)) {
+        // `cmd < .env` feeds the file to the command, which may well print it.
+        const input = seg.inputs.find((w) => isSensitiveWord(w, guard));
+        if (input !== undefined)
+            return `reads sensitive file ${input}`;
+        if (!seg.words.some((w) => READERS.has(baseName(w))))
+            continue;
+        const skip = patternWordIndexes(seg.words);
+        const file = seg.words.find((w, i) => !skip.has(i) && isSensitiveWord(w, guard));
+        if (file !== undefined)
+            return `reads sensitive file ${wordAsPath(file).replace(/^\$HOME(?=\/)/, '~')}`;
     }
     return null;
 }
@@ -203,10 +479,21 @@ export function checkPreToolUse(input, guard, scanner, readFile) {
         const why = bashExposureReason(toolInput.command, guard);
         return why ? decide(`this command ${why}, which would put secrets into the conversation.`) : null;
     }
-    if (input.tool_name === 'Grep' && typeof toolInput.path === 'string') {
-        return isSensitivePath(toolInput.path, guard)
-            ? decide(`searching ${toolInput.path} would put secrets into the conversation.`)
-            : null;
+    if (input.tool_name === 'Grep') {
+        // Only "content" mode prints matching lines; "files_with_matches" and
+        // "count" print file names and numbers. An unset mode is checked too, so
+        // a change in Grep's default can never switch the guard off.
+        if (toolInput.output_mode === 'files_with_matches' || toolInput.output_mode === 'count')
+            return null;
+        if (typeof toolInput.path === 'string' && isSensitivePath(toolInput.path, guard)) {
+            return decide(`searching ${toolInput.path} would put secrets into the conversation.`);
+        }
+        // glob: ".env*" or "**/*.pem" searches the credentials files themselves.
+        if (typeof toolInput.glob === 'string' &&
+            (isSensitivePath(toolInput.glob, guard) || globCouldMatchSensitive(toolInput.glob, guard))) {
+            return decide(`searching files matching ${toolInput.glob} would put secrets into the conversation.`);
+        }
+        return null;
     }
     if (input.tool_name === 'Read' && typeof toolInput.file_path === 'string') {
         const filePath = toolInput.file_path;

@@ -56,6 +56,32 @@ export type FileReader = (filePath: string, maxBytes: number) => string | null;
 export declare function resolveToolGuardConfig(config: ToolGuardConfig | undefined): Required<ToolGuardConfig>;
 export declare function isSensitivePath(filePath: string, guard: Required<ToolGuardConfig>): boolean;
 /**
+ * Whether a shell or Grep glob such as ".env*", "id_*" or "*.pem" could
+ * expand to a sensitive file name. The file name part of the glob is tested
+ * against sample names built from the sensitive file-name globs. A glob that
+ * starts with "*" is only tested against the extension-style samples
+ * ("*.pem" -> "x.pem"), so broad globs like "*.json" or "*" are not flagged
+ * just because "credentials.json" would match them.
+ */
+export declare function globCouldMatchSensitive(glob: string, guard: Required<ToolGuardConfig>): boolean;
+/**
+ * One simple command of a shell line: its words (quotes removed, redirection
+ * targets taken out) and the files it reads through `<`.
+ */
+export interface ShellSegment {
+    words: string[];
+    inputs: string[];
+}
+/**
+ * Split a shell command into simple commands. Not a full parser, but it
+ * honors quoting and escapes, splits on ; & | && || newlines, parentheses and
+ * backticks, and tells input redirections (`< .env`) apart from output ones
+ * (`> .env`, `2>&1`, `&>> log`), which write a file rather than print it.
+ * Command substitutions inside double quotes ("$(cat .env)") are parsed as
+ * commands of their own.
+ */
+export declare function parseShellSegments(command: string, depth?: number): ShellSegment[];
+/**
  * Drop heredoc bodies (`<<EOF ... EOF`, `<<'EOF'`, `<<-EOF`), keeping the rest
  * of the opening line. A heredoc body is data fed to a program - often a
  * script or test text that merely mentions `.env` - not a file being read.

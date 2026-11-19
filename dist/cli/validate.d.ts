@@ -42,3 +42,9 @@ export declare function parseAllowlists(input: {
     allowedValues?: unknown;
     allowedPatterns?: unknown;
 }): AllowlistPayload;
+/**
+ * Whether a request's Host header names this loopback server. Anything else
+ * (a hostile domain re-pointed at 127.0.0.1 by DNS rebinding, another port)
+ * is refused before the page, which embeds the save token, is served.
+ */
+export declare function isLoopbackHost(host: string | undefined, port: number): boolean;

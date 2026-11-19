@@ -44,9 +44,15 @@ export interface ScannerSetup {
   defaultRulesPath: string;
   /** Plugin version, for rule-cache invalidation. */
   version: string;
+  /**
+   * Characters of each text the rule engine scans. The tool guard passes
+   * toolGuard.maxScanBytes so a raised limit is not silently capped at the
+   * scanner's own default.
+   */
+  maxScanLength?: number;
 }
 
-export function buildScanner({ config, configPath, defaultRulesPath, version }: ScannerSetup): PrivacyScanner {
+export function buildScanner({ config, configPath, defaultRulesPath, version, maxScanLength }: ScannerSetup): PrivacyScanner {
   let externalRulesPath = defaultRulesPath;
   if (config.externalRulesJsonPath) {
     const baseDir = configPath ? path.dirname(configPath) : process.cwd();
@@ -66,6 +72,7 @@ export function buildScanner({ config, configPath, defaultRulesPath, version }: 
       allowedDomains: config.allowedDomains,
       allowedValues: config.allowedValues,
       allowedPatterns: config.allowedPatterns,
+      ...(maxScanLength !== undefined ? { maxScanLength } : {}),
     }
   );
 }

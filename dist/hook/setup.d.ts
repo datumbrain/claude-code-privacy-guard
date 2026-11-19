@@ -21,5 +21,11 @@ export interface ScannerSetup {
     defaultRulesPath: string;
     /** Plugin version, for rule-cache invalidation. */
     version: string;
+    /**
+     * Characters of each text the rule engine scans. The tool guard passes
+     * toolGuard.maxScanBytes so a raised limit is not silently capped at the
+     * scanner's own default.
+     */
+    maxScanLength?: number;
 }
-export declare function buildScanner({ config, configPath, defaultRulesPath, version }: ScannerSetup): PrivacyScanner;
+export declare function buildScanner({ config, configPath, defaultRulesPath, version, maxScanLength }: ScannerSetup): PrivacyScanner;

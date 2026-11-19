@@ -55,6 +55,31 @@ export const CORPUS: CorpusGroup[] = [
       'Authorization: Bearer <token>',
       'Authorization: Bearer YOUR_TOKEN_HERE',
       'set the key to sk-xxx or sk-... in your config',
+      'OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx',
+    ],
+  },
+  {
+    category: 'address-shaped strings that are not a person',
+    snippets: [
+      'import logo from "./assets/logo@2x.png";',
+      'srcset="icon@1.5x.webp 1.5x, icon@3x.webp 3x"',
+      'origin  git@github.com:acme/app.git (fetch)',
+      'git clone git@gitlab.com:group/project.git',
+      'npm i react@18.2.0 lodash@4.17.21',
+    ],
+  },
+  {
+    category: 'sk- prefixed identifiers that are not keys',
+    snippets: [
+      '<div class="sk-folding-cube-animation-wrapper"></div>',
+      '.sk-chasing-dots-spinner-container { display: flex; }',
+    ],
+  },
+  {
+    category: 'code that only mentions a private key header',
+    snippets: [
+      'if (pem.startsWith("-----BEGIN RSA PRIVATE KEY-----")) {',
+      "const HEADER = '-----BEGIN OPENSSH PRIVATE KEY-----';",
     ],
   },
   {
@@ -155,11 +180,6 @@ export const KNOWN_FALSE_POSITIVES: { snippet: string; firesRuleId: string; note
     snippet: 'api_key = "YOUR_API_KEY_HERE"',
     firesRuleId: 'generic-code-secret-assignment',
     note: 'The 17-char placeholder is >=16 word chars in quotes after api_key=, so the generic assignment rule fires. "YOUR_KEY" (used in the corpus) is short enough to stay clean.',
-  },
-  {
-    snippet: 'OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx',
-    firesRuleId: 'openai-api-key',
-    note: 'sk- followed by 20+ chars matches even when the chars are placeholder x\'s. Shorter "sk-xxx" prose stays clean.',
   },
 ];
 

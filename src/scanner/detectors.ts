@@ -51,6 +51,7 @@ export const BUILTIN_RULES: DetectionRule[] = [
     examples: ['user@acme-corp.io', 'john.doe@company.co.uk'],
     redactionStrategy: 'semantic',
     enabled: true,
+    validate: (match) => !isNonPersonalAddress(match),
   },
   {
     id: 'jwt-token',
@@ -95,6 +96,11 @@ export const BUILTIN_RULES: DetectionRule[] = [
     examples: ['sk-proj-1234567890abcdefghij', 'sk-1234567890abcdefghij'],
     redactionStrategy: 'token-replace',
     enabled: true,
+    // Real keys are random base62, so they essentially always contain a digit
+    // (a 48-char key without one is about a 1-in-5000 event). Requiring one
+    // drops placeholders like sk-xxxxxxxxxxxxxxxxxxxx and hyphenated words
+    // such as CSS class names (sk-folding-cube-animation-wrapper).
+    validate: (match) => /\d/.test(match.slice(3)),
   },
   {
     id: 'anthropic-api-key',
@@ -300,13 +306,15 @@ export const BUILTIN_RULES: DetectionRule[] = [
   {
     id: 'database-connection-string-credentials',
     title: 'Database Connection String with Credentials',
-    description: 'Detects database URIs with an inline password (scheme://user:password@host) for postgres/mysql/mongodb/redis/amqp',
+    description: 'Detects database URIs with an inline password (scheme://user:password@host) for postgres/mysql/mongodb/redis/amqp, including SQLAlchemy driver suffixes (postgresql+psycopg2://) and an empty user (redis://:password@host)',
     severity: 'critical',
     category: 'secret',
     // Requires the ":password@" userinfo so credential-less URIs
     // (scheme://host, scheme://user@host) never match. @ and / are illegal
     // unencoded in RFC 3986 userinfo, so the class boundaries are reliable.
-    pattern: /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?):\/\/[^\s:/@]+:[^\s/@]+@[^\s/@]+/g,
+    // The user may be empty (redis://:password@host is the usual Redis form)
+    // and the scheme may carry a SQLAlchemy driver (postgresql+asyncpg://).
+    pattern: /\b(?:postgres(?:ql)?|mysql|mongodb|rediss?|amqps?)(?:\+[A-Za-z0-9]{1,20})?:\/\/[^\s:/@]*:[^\s/@]+@[^\s/@]+/g,
     examples: ['postgres://user:EXAMPLEpassword@db.example.com:5432/mydb'],
     redactionStrategy: 'partial-mask',
     enabled: true,
@@ -317,7 +325,9 @@ export const BUILTIN_RULES: DetectionRule[] = [
     description: 'Detects likely hardcoded keys/tokens in code assignments',
     severity: 'high',
     category: 'secret',
-    pattern: /\b(?:api[_-]?key|secret|token|access[_-]?token|auth[_-]?token)\b\s*[:=]\s*['"`][A-Za-z0-9_\-/+=]{16,}['"`]/gi,
+    // The key may be quoted ('api_key' => ...) and the operator may be
+    // Go's := or Ruby/PHP's =>, as well as plain : and =.
+    pattern: /\b(?:api[_-]?key|secret|token|access[_-]?token|auth[_-]?token)\b['"]?\s*(?::=|=>|[:=])\s*['"`][A-Za-z0-9_\-/+=]{16,}['"`]/gi,
     examples: ['api_key = "abc1234567890secretvalue"'],
     redactionStrategy: 'token-replace',
     enabled: true,
@@ -344,16 +354,33 @@ export const BUILTIN_RULES: DetectionRule[] = [
   {
     id: 'private-key',
     title: 'Private Key',
-    description: 'Detects SSH and PEM private keys',
+    description: 'Detects SSH, PEM and PGP private keys, including a key cut off before its END line',
     severity: 'critical',
     category: 'secret',
-    pattern: /-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----[\s\S]*?-----END (RSA |OPENSSH |EC )?PRIVATE KEY-----/g,
+    // A whole key (BEGIN ... END, bounded so a run of BEGIN lines without an
+    // END stays linear), or a BEGIN line followed by a base64 body line - a
+    // key cut off by `head`, a size cap or a partial paste is still a key. A
+    // bare BEGIN line in code (startsWith("-----BEGIN ...")) matches neither.
+    pattern: /-----BEGIN (?:RSA |DSA |EC |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----(?:[\s\S]{0,20000}?-----END (?:RSA |DSA |EC |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----|(?:\r?\n|\\n)(?:[A-Za-z][A-Za-z-]{0,30}: [^\n]{0,200}(?:\r?\n|\\n)){0,4}(?:\r?\n|\\n)?[A-Za-z0-9+/=]{40,})/g,
     examples: ['-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg...\n-----END PRIVATE KEY-----'],
     redactionStrategy: 'token-replace',
     enabled: true,
   },
   ENTROPY_RULE,
 ];
+
+/**
+ * Addresses the email rule matches that are not a person's mailbox: the SSH
+ * user in git remotes (git@github.com:org/repo.git) and image density
+ * suffixes in asset names (logo@2x.png, icon@1.5x.webp).
+ */
+export function isNonPersonalAddress(match: string): boolean {
+  const at = match.indexOf('@');
+  const local = match.slice(0, at).toLowerCase();
+  const domain = match.slice(at + 1);
+  if (local === 'git') return true;
+  return /^\d+(?:\.\d+)?x\.[A-Za-z]{2,5}$/i.test(domain);
+}
 
 const CODING_SECRET_KEYWORDS = [
   'api key',

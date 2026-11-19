@@ -102,9 +102,10 @@ Blocking relies on the `UserPromptSubmit` hook JSON protocol: the hook prints `{
 Prompts are only half the leak path: `Read` on `.env`, `cat ~/.aws/credentials`, or grep output full of tokens all put secrets into the conversation too. `scripts/tool-guard.js` handles two more hooks:
 
 - **`PreToolUse`** (`Read`, `Grep`, `Bash`) - the only point where a leak can still be prevented. Privacy Guard asks for your permission (or denies, with `toolGuard.preToolUse: "deny"`) before the calls below. In `auto`, `bypassPermissions` and `dontAsk` permission modes Claude Code settles an "ask" without showing you a prompt, so there Privacy Guard denies instead, and the message says how to allow the file (`toolGuard.allowedPaths`). The calls it guards:
-  - reading or grepping a credentials file: `.env`, `.env.*` (not `.env.example`/`.sample`/`.template`), `*.pem`, `*.key`, `id_rsa`/`id_ed25519`, `.netrc`, `.npmrc`, `.git-credentials`, `.aws/credentials`, `.docker/config.json`, `.kube/config`, `service-account*.json`, and more;
+  - reading or grepping a credentials file: `.env`, `.env.*` (not `.env.example`/`.sample`/`.template`, or `.env.<env>.example` and the like), `*.pem`, `*.key`, `id_rsa*`/`id_ed25519*` (custom-named keys too, not `*.pub`), `.netrc`, `.npmrc`, `.git-credentials`, `.aws/credentials`, `.docker/config.json`, `.kube/config`, `service-account*.json`, and more;
   - reading any other file whose contents contain a secret (the first `maxScanBytes` of it are scanned with the same rules as prompts);
-  - a Bash command that prints one of those files (`cat .env`, `grep KEY .env`, `< .env`) or dumps the environment (`env`, `printenv`, `export -p`). Commands that use a file without printing it (`source .env`, `ls .env`, `docker run --env-file .env`) and heredoc text that merely mentions a path are left alone.
+  - a Grep whose `path` is one of those files or whose `glob` targets them (`.env*`, `*.pem`), unless `output_mode` is `files_with_matches` or `count`, which print only file names and numbers;
+  - a Bash command that prints one of those files (`cat .env`, `cat .env*`, `grep KEY .env`, `< .env`, `"$(cat .env)"`) or dumps the environment (`env`, `printenv`, bare `export`, `export -p`, `declare -p`). Commands that use a file without printing it (`source .env`, `ls .env`, `docker run --env-file .env`), commands that write one (`cat .env.example > .env`), search patterns that merely mention a path (`grep -rn ".env" src`, `jq .env app.json`) and heredoc text are left alone.
 - **`PostToolUse`** (`Read`, `Grep`, `Bash`, `WebFetch`, MCP tools) - scans tool output. Claude Code does not let a hook rewrite a built-in tool's output, so by this point the output is already in context: Privacy Guard shows you what leaked (so you can rotate it) and tells Claude not to repeat the values.
 
 Both hooks fail open: an internal error never blocks your tools.
@@ -155,8 +156,12 @@ In the default permission mode you get Claude Code's normal permission prompt in
 ## Configuration
 
 Create a `.privacy-guard.json` file (searched upward from your current
-working directory, so a repo-root or home-directory config both work) to
-override the defaults. See `.privacy-guard.example.json` for a starter
+working directory, so a repo-root or home-directory config both work; when
+nothing is found up the tree, `~/.privacy-guard.json` is used, so the global
+config also covers projects outside your home directory) to override the
+defaults. List options (`allowedDomains`, `allowedValues`, `allowedPatterns`,
+`disabledRules`) must be arrays of strings: a single string is read as a
+one-item list and anything else is ignored, both with a console warning. See `.privacy-guard.example.json` for a starter
 file.
 
 | Option | Type | Default | Status |
@@ -167,7 +172,7 @@ file.
 | `externalRulesJsonPath` | `string` | bundled `data/gitleaks-rules.json` | ✅ Implemented. Path (relative to the config file's directory) to a custom external regex dataset, replacing the bundled one. Entries may carry `flags`, `entropy`, `keywords`, `secretGroup` and `secretOnly` (see `data/gitleaks-rules.json` for the format). Patterns that look prone to catastrophic backtracking are skipped at load time (with a console warning) rather than risking a hang. |
 | `externalRulesMode` | `"coding-only" \| "all"` | `"coding-only"` | ✅ Implemented. `"coding-only"` filters the external dataset down to rules whose name/description mentions a coding-secret keyword (key, token, secret, password, private key, etc.) or that are marked `"coding": true`; `"all"` loads every external rule. Every bundled gitleaks rule is marked coding, so this only matters for a custom dataset. |
 | `piiProfile` | `{ creditCard?: boolean, ssn?: boolean, phone?: boolean }` | `{}` (all off) | ✅ Implemented. Opt-in PII detectors, each enabled by setting its flag to `true`. Rule IDs are `pii-credit-card`, `pii-ssn` and `pii-phone`, and they can be turned off individually via `disabledRules`. |
-| `toolGuard` | `object` | see below | ✅ Implemented. Tool-call scanning. `enabled` (default `true`); `preToolUse`: `"ask"` (default; becomes `"deny"` in `auto`/`bypassPermissions`/`dontAsk` permission modes, which can't show a prompt), `"deny"` or `"off"`; `postToolUse`: `"warn"` (default) or `"off"`; `sensitivePaths`: extra globs to treat as credentials files; `allowedPaths`: globs never asked about (skips the path check, the content scan, and the after-read warning); `maxScanBytes` (default `200000`). A glob without `/` matches the file name, one with `/` matches the end of the path, and `**` crosses directories. |
+| `toolGuard` | `object` | see below | ✅ Implemented. Tool-call scanning. `enabled` (default `true`); `preToolUse`: `"ask"` (default; becomes `"deny"` in `auto`/`bypassPermissions`/`dontAsk` permission modes, which can't show a prompt), `"deny"` or `"off"`; `postToolUse`: `"warn"` (default) or `"off"`; `sensitivePaths`: extra globs to treat as credentials files; `allowedPaths`: globs never asked about (skips the path check, the content scan, and the after-read warning); `maxScanBytes` (default `200000`). A glob without `/` matches the file name, one with `/` (a leading `./` is ignored) matches the end of the path, `**` crosses directories, and `**/` also matches no directory at all. |
 | `allowedDomains` | `string[]` | `[]` | ✅ Implemented. Extra email domains to allow through the `email-address` rule, on top of the reserved documentation domains that are always allowed. An entry matches the exact domain or any subdomain (e.g. `acme-corp.io` allows `a@acme-corp.io` and `a@mail.acme-corp.io`); matching is case-insensitive. |
 | `allowedValues` | `string[]` | `[]` | ✅ Implemented. Exact matched values to always allow, from any rule (e.g. a documented example key). Comparison is case-sensitive against the raw matched text. |
 | `allowedPatterns` | `string[]` | `[]` | ✅ Implemented. Regexes; a finding whose matched text satisfies any of these is always allowed, from any rule. Patterns that fail to compile or look prone to catastrophic backtracking are skipped with a console warning. |

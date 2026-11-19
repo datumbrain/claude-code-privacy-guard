@@ -7,20 +7,24 @@
  */
 import * as http from 'http';
 import * as fs from 'fs';
+import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BUILTIN_RULES, loadExternalRulesFromJson } from '../scanner/detectors.js';
 import { ConfigLoader } from '../config/loader.js';
 import { renderPage } from './page.js';
 import { resolveConfigPath, isGlobalConfigPath, writeDisabledRules, writeAllowlists, writeSettings } from './config-writer.js';
-import { parseAllowlists, validateAllowedPattern, parseSettings } from './validate.js';
+import { parseAllowlists, validateAllowedPattern, parseSettings, isLoopbackHost } from './validate.js';
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 export async function startRulesServer() {
     const configPath = resolveConfigPath();
     const configLoader = new ConfigLoader(configPath);
     const config = configLoader.getConfig();
     const defaultExternalRulesPath = fileURLToPath(new URL('../../data/gitleaks-rules.json', import.meta.url));
-    const externalRulesPath = config.externalRulesJsonPath || defaultExternalRulesPath;
+    // Relative to the config file's directory, exactly as the hooks resolve it.
+    const externalRulesPath = config.externalRulesJsonPath
+        ? path.resolve(path.dirname(configPath), config.externalRulesJsonPath)
+        : defaultExternalRulesPath;
     const externalRules = loadExternalRulesFromJson(externalRulesPath, {
         codingOnly: config.externalRulesMode !== 'all',
     });
@@ -49,6 +53,15 @@ export async function startRulesServer() {
     const token = randomBytes(16).toString('hex');
     const server = http.createServer((req, res) => {
         resetInactivityTimer();
+        // DNS rebinding guard: a hostile page whose domain is re-pointed at
+        // 127.0.0.1 would otherwise be same-origin with this server and could read
+        // the page (and its save token). Its requests carry its own Host header.
+        const bound = server.address();
+        if (!isLoopbackHost(req.headers.host, typeof bound === 'object' && bound ? bound.port : 0)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('Forbidden');
+            return;
+        }
         if (req.method === 'GET' && req.url === '/') {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(renderPage(rules, allowlists, settings, token, configPath, isGlobalConfigPath(configPath)));
