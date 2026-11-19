@@ -34,16 +34,9 @@
   <path d="M634 78 V210" stroke="#1f282c" stroke-width="2"/>
 
   <!-- pixel mascot -->
-  <g fill="#2fcf72">
-    <rect x="296" y="92" width="48" height="26"/>
-    <rect x="284" y="104" width="12" height="10"/>
-    <rect x="344" y="104" width="12" height="10"/>
-    <rect x="300" y="118" width="8" height="12"/>
-    <rect x="316" y="118" width="8" height="12"/>
-    <rect x="332" y="118" width="8" height="12"/>
+  <g transform="translate(297 73) scale(0.12)">
+    <path fill="#3dff8b" fill-rule="evenodd" clip-rule="evenodd" d="M525 273.7h75v77.6h-75V427h-37.2v73H450v-73h-37.2v73H375v-73H225v73h-37.8v-73H150v73h-37.8v-73H75v-75.7H0v-77.6h75V125h450zm-375 0h37.2v-71.1H150zm262.8 0H450v-71.1h-37.2z"/>
   </g>
-  <rect x="306" y="98" width="6" height="12" fill="#07090a"/>
-  <rect x="328" y="98" width="6" height="12" fill="#07090a"/>
   <text x="333" y="158" text-anchor="middle" class="mono dim" font-size="17">Sonnet 5 · Claude Pro</text>
   <text x="333" y="184" text-anchor="middle" class="mono dim" font-size="17">~/Projects/dummyproject</text>
 
