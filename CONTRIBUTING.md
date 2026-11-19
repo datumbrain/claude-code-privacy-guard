@@ -92,16 +92,20 @@ Releases are cut with:
 make release
 ```
 
-which runs `scripts/release.sh`. It interactively:
+which runs `scripts/release.sh`. Every prompt takes a single keypress (no
+Enter), and only `y` counts as yes. It:
 
-1. Prompts for a version bump (`patch` / `minor` / `major` / `custom`).
-2. Runs `npm run build` and `npm test`.
-3. Syncs the new version into `.claude-plugin/plugin.json` and
+1. Refuses to run on a dirty working tree.
+2. Prompts for a version bump: `1` patch, `2` minor, `3` major (any other key
+   cancels), and refuses if that tag already exists locally or on `origin`.
+   Nothing on disk changes before you confirm.
+3. Runs `npm run build` and `npm test`.
+4. Syncs the new version into `.claude-plugin/plugin.json` and
    `.claude-plugin/marketplace.json`.
-4. Creates the `release: vX.Y.Z` commit.
-5. Optionally pushes to `origin` and creates the GitHub release (which also
+5. Creates the `release: vX.Y.Z` commit.
+6. Optionally pushes to `origin` and creates the GitHub release (which also
    creates the tag) with auto-generated notes.
-6. Only after the GitHub release, optionally publishes to npm. This is
+7. Only after the GitHub release, optionally publishes to npm. This is
    opt-in and defaults to **No** at every prompt: it checks `npm whoami`,
    runs `npm publish --dry-run` so you can inspect the tarball, then asks
    once more before the real `npm publish`. Publishing needs an npm account

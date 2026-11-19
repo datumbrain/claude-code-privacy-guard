@@ -7,6 +7,14 @@
 <meta name="description" content="A Claude Code plugin that blocks secrets and PII in prompts, tool calls, files and tool output before they reach the model. Local only, no telemetry.">
 <meta property="og:title" content="Claude Code Privacy Guard">
 <meta property="og:description" content="Stops Claude Code from reading your secrets, not just from you typing them.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://datumbrain.github.io/claude-code-privacy-guard/">
+<meta property="og:image" content="https://datumbrain.github.io/claude-code-privacy-guard/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Claude Code Privacy Guard: your agent reads more than you type.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://datumbrain.github.io/claude-code-privacy-guard/">
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,8 +70,14 @@ nav ul a:hover { color: var(--text); }
 .install {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 12px 14px; font-family: var(--mono); font-size: 14px; max-width: 520px;
+  padding: 12px 14px; font-family: var(--mono); font-size: 14px; max-width: 600px;
 }
+/* Grid items default to min-width: auto, so a long command in a <pre> would
+   widen the column past a phone screen instead of scrolling inside its box. */
+.hero .wrap > *, .split > *, .steps > li { min-width: 0; }
+.hero .sub code { overflow-wrap: anywhere; }
+.install > div { min-width: 0; display: flex; }
+#cmd { font-size: 13px; white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
 .install span { color: var(--green); margin-right: 8px; user-select: none; }
 .install button {
   cursor: pointer; font-family: "Work Sans", sans-serif; font-size: 13px;
@@ -168,10 +182,10 @@ footer a:first-child { margin-left: 0; }
       <h1>Your agent reads more than you <em>type</em>.</h1>
       <p class="lede">One <code>cat .env</code> puts your credentials in the model's context. Privacy Guard checks every path a secret can take, prompts, tool calls, files and output, and blocks the leak before it reaches the AI.</p>
       <div class="install">
-        <div><span>&gt;</span><code id="cmd">/plugin install claude-code-privacy-guard</code></div>
+        <div><span>&gt;</span><code id="cmd">/plugin marketplace add datumbrain/claude-code-privacy-guard</code></div>
         <button id="copy" type="button">Copy</button>
       </div>
-      <p class="sub">Add the marketplace first, then restart Claude Code. <a href="#install">Full steps</a></p>
+      <p class="sub">Then run <code>/plugin install claude-code-privacy-guard</code> and restart Claude Code. <a href="#install">Full steps</a></p>
     </div>
     <div class="term" aria-label="Example of a blocked file read">
       <div class="term-bar"><i></i><i></i><i></i></div>
@@ -243,15 +257,15 @@ footer a:first-child { margin-left: 0; }
           <li><b>Cloud</b> AWS, GCP service accounts, Azure client secrets</li>
           <li><b>Source hosts</b> GitHub and GitLab tokens, npm access tokens</li>
           <li><b>Services</b> Slack, Stripe, Twilio, SendGrid</li>
-          <li><b>Connection strings</b> Postgres, MySQL, MongoDB, Redis, AMQP with inline credentials</li>
-          <li><b>Keys</b> SSH and PEM private keys, JWTs, bearer tokens, <code>.env</code> assignments</li>
+          <li><b>Connection strings</b> Postgres, MySQL, MongoDB, Redis, AMQP with inline credentials, SQLAlchemy URLs included</li>
+          <li><b>Keys</b> SSH, PEM and PGP private keys (even cut off), JWTs, bearer tokens, <code>.env</code> and in-code assignments</li>
           <li><b>High-entropy tokens</b> only after a keyword like <code>token:</code> or <code>password</code>, so SHAs and UUIDs stay quiet</li>
         </ul>
       </div>
       <div>
         <h3>Personal information</h3>
         <ul>
-          <li><b>Email addresses</b> on by default. Documentation domains such as <code>example.com</code> are never flagged</li>
+          <li><b>Email addresses</b> on by default. Documentation domains such as <code>example.com</code>, git remotes and <code>logo@2x.png</code> are never flagged</li>
           <li><b>Credit cards</b> opt in. Luhn checksum, real issuer prefix, matching length</li>
           <li><b>US SSNs</b> opt in. Dashed format, invalid area, group and serial rejected</li>
           <li><b>Phone numbers</b> opt in. E.164 and US formats checked against numbering rules</li>
@@ -331,6 +345,8 @@ footer a:first-child { margin-left: 0; }
     <div>MIT licensed. Built by Datum Brain.</div>
     <div>
       <a href="https://github.com/datumbrain/claude-code-privacy-guard">Source</a>
+      <a href="https://github.com/datumbrain/claude-code-privacy-guard/releases">Releases</a>
+      <a href="https://github.com/datumbrain/claude-code-privacy-guard/issues/new?template=false_positive.yml">Report a false positive</a>
       <a href="https://github.com/datumbrain/claude-code-privacy-guard/issues">Issues</a>
       <a href="https://www.npmjs.com/package/claude-code-privacy-guard">npm</a>
     </div>

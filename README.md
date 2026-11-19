@@ -63,18 +63,18 @@ From a clone, `node dist/cli/index.js rules` does the same.
 - Twilio API key SIDs and account SIDs
 - SendGrid API keys
 - npm access tokens
-- Database connection strings with inline credentials (postgres/mysql/mongodb/redis/amqp)
+- Database connection strings with inline credentials (postgres/mysql/mongodb/redis/amqp, including SQLAlchemy URLs like `postgresql+psycopg2://` and `redis://:password@host`)
 - JWT tokens
 - Bearer tokens
-- SSH and PEM private keys
-- Generic API key/secret/token assignments in code
+- SSH, PEM and PGP private keys, including a key cut off before its `END` line
+- Generic API key/secret/token assignments in code (`=`, `:`, Go's `:=`, Ruby/PHP's `=>`)
 - Unquoted `.env`-style assignments (`API_KEY=...`, `export SECRET=...`)
 - Unknown-prefix high-entropy tokens that follow a secret keyword (`token:`, `api_key=`, `secret`, `password`, ...). Entropy is never used alone, so git SHAs, UUIDs and hashes without a keyword in front are not flagged. Thresholds live in `ENTROPY_CONFIG` in `src/scanner/entropy.ts`.
 
 Plus about 200 service-specific rules converted from [gitleaks](https://github.com/gitleaks/gitleaks)' MIT-licensed ruleset (`data/gitleaks-rules.json`, license in `data/gitleaks-LICENSE`). Like gitleaks, each rule only runs when one of its keywords appears in the text and drops low-entropy matches, which keeps false positives down. See [Managing Rules](#managing-rules) to browse the full list, and `scripts/convert-gitleaks-rules.mjs` to refresh it.
 
 ✅ **Personal Information (PII)**
-- Email addresses (except reserved documentation domains - `example.com`, `example.org`, `example.net`, and anything ending in `.test`, `.example`, `.invalid` or `.localhost` - which never belong to a real person, so README and test fixtures don't trip the guard)
+- Email addresses (except reserved documentation domains - `example.com`, `example.org`, `example.net`, and anything ending in `.test`, `.example`, `.invalid` or `.localhost` - which never belong to a real person, so README and test fixtures don't trip the guard; git SSH remotes like `git@github.com` and image names like `logo@2x.png` are not treated as emails either)
 
 Credit card numbers, US Social Security Numbers, and phone numbers are
 detected only when you opt in through the `piiProfile` config option (see
@@ -205,7 +205,7 @@ Example:
 
 ## Managing Rules
 
-Every detection rule - built-in and external - has a stable `id` (e.g. `email-address`, `openai-api-key`, `external-slack-bot-token`). Blocked prompts now show each finding's ID directly, so you always know what to put in `disabledRules`.
+Every detection rule - built-in and external - has a stable `id` (e.g. `email-address`, `openai-api-key`, `external-slack-bot-token`). Blocked prompts show each finding's ID, so you always know what to put in `disabledRules`.
 
 To manage rules and allowlists without hand-editing the config, run:
 
@@ -238,8 +238,8 @@ npm install
 # Build
 npm run build
 
-# Test the prompt hook directly
-echo "test sk-proj-abc123" | node scripts/prompt-guard.js
+# Test the prompt hook directly (prints a "block" decision)
+echo '{"prompt":"my key is AKIAZ7QWERTYUIOPASDF"}' | node scripts/prompt-guard.js
 
 # Test the tool hook directly (prints an "ask" decision)
 echo '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":".env"}}' | node scripts/tool-guard.js
@@ -251,7 +251,7 @@ Release:
 ```bash
 make release
 ```
-This runs an interactive flow that asks for a version bump, runs build and test, syncs the version into `plugin.json` and `marketplace.json`, creates the release commit, and then optionally pushes and creates the GitHub release (with auto-generated notes). Publishing to npm is a separate opt-in prompt that defaults to No.
+This runs an interactive flow (single keypress, no Enter) that asks for a version bump - `1` patch, `2` minor, `3` major - refuses on a dirty tree or an existing tag, runs build and test, syncs the version into `plugin.json` and `marketplace.json`, creates the release commit, and then optionally pushes and creates the GitHub release (with auto-generated notes). Publishing to npm is a separate opt-in prompt that defaults to No.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the `dist/` rebuild requirement.
 
@@ -262,6 +262,16 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the
 - ✅ No telemetry or tracking
 - ✅ Open source and fully auditable
 - ✅ The plugin only blocks, asks or warns - it doesn't store or log your sensitive data
+
+## Limitations
+
+Privacy Guard reduces accidental leaks; it is not a sandbox. Worth knowing:
+
+- **Tool output can't be cleaned.** Claude Code doesn't let a hook rewrite a built-in tool's output, so a secret that reaches `PostToolUse` is already in context. The guard warns you (so you can rotate it) and tells Claude not to repeat it.
+- **File contents are only pre-scanned for `Read`.** For Bash, the guard checks which files a command reads and whether it dumps the environment, but it can't know what an arbitrary program will print (`python script.py`, `grep -r KEY .`). Those cases are caught after the fact by `PostToolUse`.
+- **The Bash check is not a full shell parser.** It handles quoting, redirection, pipes and `$(...)`, but a determined command can still get around it. It guards against an agent reading secrets by accident, not against someone trying to evade it.
+- **Any finding in a file asks first, including an email address.** Reading a file that contains a maintainer email (a LICENSE, `package.json`) asks in the default mode and is denied in auto mode. Add the domain to `allowedDomains` or the path to `toolGuard.allowedPaths`.
+- **Placeholder credentials can still match**, e.g. `postgres://user:password@localhost`. Use `allowedValues` or `allowedPatterns` for ones your project uses.
 
 ## Block, Redact, or Warn?
 
