@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code Privacy Guard</title>
+<meta name="description" content="A Claude Code plugin that blocks secrets and PII in prompts, tool calls, files and tool output before they reach the model. Local only, no telemetry.">
+<meta property="og:title" content="Claude Code Privacy Guard">
+<meta property="og:description" content="Stops Claude Code from reading your secrets, not just from you typing them.">
+<link rel="icon" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07090a;
+  --surface: #0e1214;
+  --surface-2: #141a1d;
+  --line: #1f282c;
+  --text: #e8efe9;
+  --muted: #8b9a92;
+  --green: #3dff8b;
+  --green-dim: #1f8f4f;
+  --red: #ff6b6b;
+  --amber: #ffc857;
+  --radius: 10px;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: "Space Grotesk", system-ui, sans-serif; line-height: 1.1; margin: 0; letter-spacing: -0.02em; }
+a { color: inherit; }
+code, pre { font-family: var(--mono); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* nav */
+nav { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(7,9,10,.88); backdrop-filter: blur(10px); z-index: 10; }
+nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: "Space Grotesk", sans-serif; font-weight: 600; text-decoration: none; }
+.brand img { height: 26px; width: auto; }
+nav ul { list-style: none; display: flex; gap: 26px; margin: 0; padding: 0; font-size: 15px; color: var(--muted); align-items: center; }
+nav ul a { text-decoration: none; }
+nav ul a:hover { color: var(--text); }
+.gh { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; color: var(--text); }
+
+/* hero */
+.hero { padding: 88px 0 72px; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+.kicker { font-family: var(--mono); font-size: 13px; color: var(--green); margin-bottom: 20px; }
+.hero h1 { font-size: clamp(38px, 5.4vw, 64px); font-weight: 700; }
+.hero h1 em { font-style: normal; color: var(--green); }
+.hero p.lede { color: var(--muted); font-size: 19px; margin: 24px 0 32px; max-width: 520px; }
+.install {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; font-family: var(--mono); font-size: 14px; max-width: 520px;
+}
+.install span { color: var(--green); margin-right: 8px; user-select: none; }
+.install button {
+  cursor: pointer; font-family: "Work Sans", sans-serif; font-size: 13px;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px;
+}
+.install button:hover { border-color: var(--green-dim); }
+.hero .sub { color: var(--muted); font-size: 14px; margin-top: 14px; }
+
+/* terminal */
+.term { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 30px 80px -30px rgba(61,255,139,.18); }
+.term-bar { display: flex; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.term-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); }
+.term pre { margin: 0; padding: 20px; font-size: 13px; line-height: 1.7; overflow-x: auto; white-space: pre; }
+.t-dim { color: var(--muted); }
+.t-red { color: var(--red); }
+.t-grn { color: var(--green); }
+.t-amb { color: var(--amber); }
+
+/* sections */
+section { padding: 84px 0; border-top: 1px solid var(--line); }
+.split { display: grid; grid-template-columns: 340px 1fr; gap: 56px; }
+h2.big { font-size: clamp(28px, 3.4vw, 40px); font-weight: 700; }
+.split .intro { color: var(--muted); margin-top: 16px; }
+.label { font-family: var(--mono); font-size: 12px; color: var(--green); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px; }
+
+/* leak paths */
+.paths { list-style: none; margin: 0; padding: 0; counter-reset: p; }
+.paths li { display: grid; grid-template-columns: 56px 1fr; gap: 8px 16px; padding: 24px 0; border-bottom: 1px solid var(--line); counter-increment: p; }
+.paths li:first-child { padding-top: 0; }
+.paths li::before { content: counter(p, decimal-leading-zero); font-family: var(--mono); color: var(--green-dim); font-size: 14px; padding-top: 4px; }
+.paths h3 { font-size: 22px; font-weight: 600; }
+.paths h3 code { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 10px; }
+.paths p { margin: 6px 0 0; color: var(--muted); grid-column: 2; }
+
+/* facts */
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.facts div { padding: 26px 24px; border-right: 1px solid var(--line); }
+.facts div:last-child { border-right: 0; }
+.facts b { display: block; font-family: "Space Grotesk", sans-serif; font-size: 38px; font-weight: 700; color: var(--green); line-height: 1; }
+.facts span { display: block; margin-top: 10px; color: var(--muted); font-size: 14px; }
+
+/* detects */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
+.cols h3 { font-size: 19px; margin-bottom: 14px; }
+.cols ul { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 15px; }
+.cols li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cols li b { color: var(--text); font-weight: 500; margin-right: 6px; }
+
+/* modes */
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+.mode { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+.mode code { color: var(--green); font-size: 15px; }
+.mode h3 { font-size: 20px; margin: 8px 0 10px; }
+.mode p { margin: 0; color: var(--muted); font-size: 15px; }
+
+/* code */
+.code { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; overflow-x: auto; margin: 0; font-size: 13px; line-height: 1.7; }
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 24px; }
+.steps li p { margin: 0 0 10px; color: var(--muted); }
+.steps li p b { color: var(--text); font-weight: 500; }
+.note { color: var(--muted); font-size: 15px; margin-top: 20px; }
+
+.shot { margin-top: 40px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.shot img { display: block; width: 100%; height: auto; }
+
+footer { border-top: 1px solid var(--line); padding: 36px 0 56px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+footer a { color: var(--text); text-decoration: none; margin-left: 20px; }
+footer a:first-child { margin-left: 0; }
+
+@media (max-width: 900px) {
+  .hero .wrap, .split, .cols, .modes { grid-template-columns: 1fr; }
+  .split { gap: 32px; }
+  .facts { grid-template-columns: 1fr 1fr; }
+  .facts div:nth-child(2) { border-right: 0; }
+  .facts div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  nav ul li:not(:last-child) { display: none; }
+  .hero { padding: 56px 0 48px; }
+  section { padding: 56px 0; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#"><img src="assets/logo.png" alt="">Privacy Guard</a>
+    <ul>
+      <li><a href="#paths">How it works</a></li>
+      <li><a href="#detects">Detection</a></li>
+      <li><a href="#config">Config</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a class="gh" href="https://github.com/datumbrain/claude-code-privacy-guard">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="kicker">claude-code plugin / open source / local only</div>
+      <h1>Your agent reads more than you <em>type</em>.</h1>
+      <p class="lede">One <code>cat .env</code> puts your credentials in the model's context. Privacy Guard checks every path a secret can take, prompts, tool calls, files and output, and blocks the leak before it reaches the AI.</p>
+      <div class="install">
+        <div><span>&gt;</span><code id="cmd">/plugin install claude-code-privacy-guard</code></div>
+        <button id="copy" type="button">Copy</button>
+      </div>
+      <p class="sub">Add the marketplace first, then restart Claude Code. <a href="#install">Full steps</a></p>
+    </div>
+    <div class="term" aria-label="Example of a blocked file read">
+      <div class="term-bar"><i></i><i></i><i></i></div>
+<pre><span class="t-dim">you</span>    read .env
+
+<span class="t-dim">Read(.env)</span>
+  <span class="t-red">Not run - permission denied</span>
+  Privacy Guard: .env usually holds credentials.
+  Reading it would put them into the conversation.
+  Blocked rather than asked because this session
+  is in <span class="t-amb">"auto"</span> permission mode, where a
+  prompt would not reach you.
+
+  To allow it, add the path to
+  <span class="t-grn">toolGuard.allowedPaths</span> in .privacy-guard.json</pre>
+    </div>
+  </div>
+</header>
+
+<section id="paths">
+  <div class="wrap split">
+    <div>
+      <div class="label">Coverage</div>
+      <h2 class="big">Four ways a secret gets in. All four are watched.</h2>
+      <p class="intro">It keeps working in auto mode, where nobody is approving tool calls. Where a confirmation would never reach you, it denies instead of asking.</p>
+    </div>
+    <ol class="paths">
+      <li>
+        <h3>Your prompts <code>UserPromptSubmit</code></h3>
+        <p>Scanned before they are sent. In the default mode the prompt is rejected and you see exactly what matched and which rule to disable if it is a false alarm.</p>
+      </li>
+      <li>
+        <h3>Tool calls <code>PreToolUse</code></h3>
+        <p>The only point where a leak can still be prevented. Reading or grepping <code>.env</code>, SSH keys or cloud credential files, or a Bash command that prints them or dumps the environment, is stopped or put to you first.</p>
+      </li>
+      <li>
+        <h3>Files it reads <code>PreToolUse</code></h3>
+        <p>Not just known filenames. Any file whose contents hold a secret is caught, using the same rules as prompts.</p>
+      </li>
+      <li>
+        <h3>Output it gets back <code>PostToolUse</code></h3>
+        <p>If a secret shows up in tool output anyway, you are told so you can rotate it, and Claude is told not to repeat it.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="facts">
+      <div><b>~200</b><span>detection rules, from gitleaks plus code-focused checks</span></div>
+      <div><b>~20 ms</b><span>added to each check</span></div>
+      <div><b>0</b><span>network calls and no telemetry</span></div>
+      <div><b>0</b><span>config needed to start</span></div>
+    </div>
+    <div class="shot"><img src="assets/claude-code-privacy-guard-ss.png" alt="Privacy Guard blocking a prompt in Claude Code" loading="lazy"></div>
+  </div>
+</section>
+
+<section id="detects">
+  <div class="wrap">
+    <div class="label">Detection</div>
+    <h2 class="big" style="max-width:700px">Tuned for code, quiet on everything else.</h2>
+    <div class="cols">
+      <div>
+        <h3>Secrets</h3>
+        <ul>
+          <li><b>AI providers</b> OpenAI, Anthropic, Google AI, Groq, Hugging Face and more</li>
+          <li><b>Cloud</b> AWS, GCP service accounts, Azure client secrets</li>
+          <li><b>Source hosts</b> GitHub and GitLab tokens, npm access tokens</li>
+          <li><b>Services</b> Slack, Stripe, Twilio, SendGrid</li>
+          <li><b>Connection strings</b> Postgres, MySQL, MongoDB, Redis, AMQP with inline credentials</li>
+          <li><b>Keys</b> SSH and PEM private keys, JWTs, bearer tokens, <code>.env</code> assignments</li>
+          <li><b>High-entropy tokens</b> only after a keyword like <code>token:</code> or <code>password</code>, so SHAs and UUIDs stay quiet</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Personal information</h3>
+        <ul>
+          <li><b>Email addresses</b> on by default. Documentation domains such as <code>example.com</code> are never flagged</li>
+          <li><b>Credit cards</b> opt in. Luhn checksum, real issuer prefix, matching length</li>
+          <li><b>US SSNs</b> opt in. Dashed format, invalid area, group and serial rejected</li>
+          <li><b>Phone numbers</b> opt in. E.164 and US formats checked against numbering rules</li>
+        </ul>
+        <p class="note">Every opt-in detector is validated, not just pattern-matched, to keep order IDs and test data from tripping the guard.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label">Modes</div>
+    <h2 class="big">Block, redact, or warn.</h2>
+    <div class="modes">
+      <div class="mode"><code>block</code><h3>Default</h3><p>Rejects the prompt outright. The sensitive data never reaches the AI.</p></div>
+      <div class="mode"><code>redact</code><h3>Block, with a clean copy</h3><p>Also blocks, but hands back a version with placeholders like <code>&lt;EMAIL_1&gt;</code> that you can paste and resubmit.</p></div>
+      <div class="mode"><code>warn</code><h3>Visibility only</h3><p>Lets the prompt through and shows what was detected. Useful while tuning allowlists.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="config">
+  <div class="wrap split">
+    <div>
+      <div class="label">Configuration</div>
+      <h2 class="big">Zero config. Tunable when you want it.</h2>
+      <p class="intro">Drop a <code>.privacy-guard.json</code> in a repo root or your home directory. Or skip the JSON and run the local rules editor, bound to 127.0.0.1 only.</p>
+      <pre class="code" style="margin-top:24px"><span class="t-grn">$</span> npx claude-code-privacy-guard rules</pre>
+    </div>
+    <pre class="code">{
+  "mode": "block",
+  "allowedDomains": ["acme-corp.io"],
+  "disabledRules": [],
+  "piiProfile": {
+    "creditCard": true,
+    "ssn": true,
+    "phone": false
+  },
+  "toolGuard": {
+    "preToolUse": "ask",
+    "postToolUse": "warn",
+    "sensitivePaths": ["secrets/**"],
+    "allowedPaths": [".env.test"]
+  }
+}</pre>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap split">
+    <div>
+      <div class="label">Install</div>
+      <h2 class="big">Two commands, then restart.</h2>
+      <p class="intro">Hooks are registered when a session starts, so close and reopen Claude Code after installing.</p>
+    </div>
+    <ol class="steps">
+      <li>
+        <p><b>Add the marketplace and install</b></p>
+        <pre class="code">/plugin marketplace add datumbrain/claude-code-privacy-guard
+/plugin install claude-code-privacy-guard</pre>
+      </li>
+      <li>
+        <p><b>Restart Claude Code.</b> Prompts and tool calls are scanned automatically from then on. To update later:</p>
+        <pre class="code">/plugin marketplace update datumbrain-plugins</pre>
+      </li>
+      <li>
+        <p><b>No plugin?</b> The rules and allowlist editor also runs straight from npm.</p>
+        <pre class="code">npx claude-code-privacy-guard rules</pre>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>MIT licensed. Built by Datum Brain.</div>
+    <div>
+      <a href="https://github.com/datumbrain/claude-code-privacy-guard">Source</a>
+      <a href="https://github.com/datumbrain/claude-code-privacy-guard/issues">Issues</a>
+      <a href="https://www.npmjs.com/package/claude-code-privacy-guard">npm</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var btn = document.getElementById('copy');
+    var cmd = document.getElementById('cmd');
+    btn.addEventListener('click', function () {
+      var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+      if (navigator.clipboard) { navigator.clipboard.writeText(cmd.textContent).then(done, function () {}); }
+    });
+  })();
+</script>
+</body>
+</html>
