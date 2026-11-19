@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 822" width="1080" height="822" role="img" aria-labelledby="t d">
+  <title id="t">Privacy Guard blocking a prompt in Claude Code</title>
+  <desc id="d">A Claude Code terminal session where the UserPromptSubmit hook blocks a prompt containing an email address and an OpenAI API key, listing both findings, a risk score of 100 out of 100, and how to disable a rule or allow a value.</desc>
+
+  <defs>
+    <style>
+      .mono { font-family: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 18px; }
+      .sans { font-family: "Space Grotesk", "Work Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .txt { fill: #e8efe9; }
+      .dim { fill: #8b9a92; }
+      .amb { fill: #ffc857; }
+      .grn { fill: #3dff8b; }
+    </style>
+    <radialGradient id="glow" cx="50%" cy="0%" r="80%">
+      <stop offset="0" stop-color="#3dff8b" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#3dff8b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- window -->
+  <rect x="8" y="8" width="1064" height="806" rx="14" fill="#07090a" stroke="#1f282c" stroke-width="2"/>
+  <rect x="9" y="9" width="1062" height="804" rx="13" fill="url(#glow)"/>
+
+  <!-- title bar -->
+  <path d="M9 61 H1071" stroke="#1f282c" stroke-width="2"/>
+  <circle cx="38" cy="35" r="6" fill="#141a1d" stroke="#1f282c"/>
+  <circle cx="58" cy="35" r="6" fill="#141a1d" stroke="#1f282c"/>
+  <circle cx="78" cy="35" r="6" fill="#141a1d" stroke="#1f282c"/>
+  <text x="540" y="33" text-anchor="middle" class="sans txt" font-size="17" font-weight="600">Claude Code - claude</text>
+  <text x="540" y="52" text-anchor="middle" class="sans dim" font-size="13">~/Projects/dummyproject</text>
+
+  <!-- welcome banner -->
+  <rect x="32" y="78" width="1016" height="132" rx="8" fill="#0e1214" stroke="#1f282c" stroke-width="2"/>
+  <path d="M634 78 V210" stroke="#1f282c" stroke-width="2"/>
+
+  <!-- pixel mascot -->
+  <g fill="#2fcf72">
+    <rect x="296" y="92" width="48" height="26"/>
+    <rect x="284" y="104" width="12" height="10"/>
+    <rect x="344" y="104" width="12" height="10"/>
+    <rect x="300" y="118" width="8" height="12"/>
+    <rect x="316" y="118" width="8" height="12"/>
+    <rect x="332" y="118" width="8" height="12"/>
+  </g>
+  <rect x="306" y="98" width="6" height="12" fill="#07090a"/>
+  <rect x="328" y="98" width="6" height="12" fill="#07090a"/>
+  <text x="333" y="158" text-anchor="middle" class="mono dim" font-size="17">Sonnet 5 · Claude Pro</text>
+  <text x="333" y="184" text-anchor="middle" class="mono dim" font-size="17">~/Projects/dummyproject</text>
+
+  <text x="656" y="104" class="mono grn" font-weight="700">What's new</text>
+  <text x="656" y="130" class="mono txt" font-size="17">Added emoji shortcode autocomplete…</text>
+  <text x="656" y="153" class="mono txt" font-size="17">Added warnings when transcript wri…</text>
+  <text x="656" y="176" class="mono txt" font-size="17">Fixed a memory leak where truncate…</text>
+  <text x="656" y="199" class="mono dim" font-size="17" font-style="italic">/release-notes for more</text>
+
+  <!-- hook output -->
+  <circle cx="44" cy="253" r="6" fill="#ffc857"/>
+  <text x="62" y="259" class="mono amb">UserPromptSubmit operation blocked by hook:</text>
+
+  <!-- shield icon -->
+  <g transform="translate(55 268)" fill="none" stroke="#ffc857" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M9 1 L17 4 V10 C17 15 13.5 18.5 9 20 C4.5 18.5 1 15 1 10 V4 Z"/>
+    <path d="M5.5 10.5 L8 13 L12.5 7.5"/>
+  </g>
+  <text x="82" y="283" class="mono amb">Privacy Guard blocked this prompt</text>
+
+  <g class="mono amb">
+    <text x="56" y="331">Found 2 sensitive item(s):</text>
+    <text x="78" y="355">- Email Address (email-address): jane….com</text>
+    <text x="78" y="379">- OpenAI API Key (openai-api-key): sk-p…UvWx</text>
+
+    <text x="56" y="427">Risk Score: 100/100</text>
+    <text x="56" y="451">Secrets: 1 | PII: 1</text>
+
+    <text x="56" y="499">Please remove or anonymize sensitive data before proceeding.</text>
+    <text x="56" y="523">To disable a rule, add its ID to "disabledRules" in .privacy-guard.json.</text>
+    <text x="56" y="547">To always allow this exact value, add it to "allowedValues" (or a matching regex</text>
+    <text x="56" y="571">to "allowedPatterns") in .privacy-guard.json.</text>
+
+    <text x="56" y="619">Original prompt: hey, can you help me with this? My email is jane.doe@example.com</text>
+    <text x="56" y="643">and the API key is sk-proj-aBcD1234EfGh<tspan>5678IjKl9012MnOp3456QrSt7890UvWx</tspan></text>
+  </g>
+
+  <!-- history rule and input -->
+  <path d="M30 676 H1050" stroke="#1f282c" stroke-width="2"/>
+  <rect x="62" y="662" width="130" height="28" fill="#07090a"/>
+  <text x="70" y="682" class="mono dim">History 8/8</text>
+
+  <text x="32" y="712" class="mono grn">❯</text>
+  <text x="56" y="712" class="mono txt">hey, can you help me with this? My email is jane.doe@example.com and the API key is</text>
+  <text x="56" y="736" class="mono txt">sk-proj-aBcD1234EfGh<tspan>5678IjKl9012MnOp3456QrSt7890UvWx</tspan></text>
+  <rect x="620" y="720" width="11" height="20" fill="none" stroke="#3dff8b" stroke-width="1.5"/>
+
+  <path d="M30 758 H1050" stroke="#1f282c" stroke-width="2"/>
+  <rect x="42" y="776" width="4" height="16" fill="#8b9a92"/>
+  <rect x="50" y="776" width="4" height="16" fill="#8b9a92"/>
+  <text x="66" y="790" class="mono dim" font-size="16">manual mode on</text>
+</svg>

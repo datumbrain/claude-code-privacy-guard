@@ -6,7 +6,7 @@
 
 A privacy-first plugin for Claude Code. Coding agents don't only see what you type: they read files and run commands on their own, and one `cat .env` puts your credentials in the model's context. Privacy Guard checks every path a secret can take - your prompts, the agent's tool calls, the files it reads, and the output it gets back - and **blocks** the leak before it reaches the AI. It keeps protecting in auto mode, where nobody is approving tool calls.
 
-![Claude Code Privacy Guard Screenshot](./assets/claude-code-privacy-guard-ss.png)
+![Claude Code Privacy Guard Screenshot](./assets/claude-code-privacy-guard-ss.svg)
 
 ## Features
 
@@ -246,7 +246,7 @@ Release:
 ```bash
 make release
 ```
-This runs an interactive flow that asks for version bump, confirms release actions, updates `CHANGELOG.md`, runs build/test, creates commit+tag, and optionally pushes/publishes.
+This runs an interactive flow that asks for a version bump, runs build and test, syncs the version into `plugin.json` and `marketplace.json`, creates the release commit, and then optionally pushes and creates the GitHub release (with auto-generated notes). Publishing to npm is a separate opt-in prompt that defaults to No.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a detection rule and the `dist/` rebuild requirement.
 
