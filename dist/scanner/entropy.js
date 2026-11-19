@@ -72,11 +72,12 @@ export function looksLikeHighEntropySecret(value) {
         : ENTROPY_CONFIG.mixedMinEntropy;
     return entropy >= threshold;
 }
-// keyword (+ short suffix such as `_value`/`Token`) , then `:` / `=` / "is",
-// optional quote, then the candidate value (captured). Bounded quantifiers
-// only, so the pattern is linear on large prompts.
+// keyword (+ short suffix such as `_value`/`Token`) , then `:` / `=` / `:=`
+// (Go) / `=>` (Ruby, PHP) / "is", optional quote, then the candidate value
+// (captured). Bounded quantifiers only, so the pattern is linear on large
+// prompts.
 const KEYWORD_ALTERNATION = ENTROPY_CONFIG.keywords.join('|');
-const HIGH_ENTROPY_PATTERN = new RegExp(`(?<![A-Za-z0-9])(?:${KEYWORD_ALTERNATION})[A-Za-z0-9_-]{0,20}["'\`]?(?:[ \\t]*[:=][ \\t]*|[ \\t]+(?:is|are|was)[ \\t]+)["'\`]?([A-Za-z0-9+/_=-]{${ENTROPY_CONFIG.minLength},256})(?![A-Za-z0-9+/_=-])`, 'gi');
+const HIGH_ENTROPY_PATTERN = new RegExp(`(?<![A-Za-z0-9])(?:${KEYWORD_ALTERNATION})[A-Za-z0-9_-]{0,20}["'\`]?(?:[ \\t]*(?::=|=>|[:=])[ \\t]*|[ \\t]+(?:is|are|was)[ \\t]+)["'\`]?([A-Za-z0-9+/_=-]{${ENTROPY_CONFIG.minLength},256})(?![A-Za-z0-9+/_=-])`, 'gi');
 export const ENTROPY_RULE = {
     id: 'high-entropy-secret',
     title: 'High-Entropy Secret',

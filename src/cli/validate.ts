@@ -118,3 +118,12 @@ function asStringArray(value: unknown, field: string): string[] {
 function dedupe(values: string[]): string[] {
   return [...new Set(values)];
 }
+
+/**
+ * Whether a request's Host header names this loopback server. Anything else
+ * (a hostile domain re-pointed at 127.0.0.1 by DNS rebinding, another port)
+ * is refused before the page, which embeds the save token, is served.
+ */
+export function isLoopbackHost(host: string | undefined, port: number): boolean {
+  return port > 0 && (host === `127.0.0.1:${port}` || host === `localhost:${port}`);
+}

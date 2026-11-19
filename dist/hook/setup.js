@@ -32,7 +32,7 @@ export function readPluginVersion(packageJsonPath) {
         return 'unknown';
     }
 }
-export function buildScanner({ config, configPath, defaultRulesPath, version }) {
+export function buildScanner({ config, configPath, defaultRulesPath, version, maxScanLength }) {
     let externalRulesPath = defaultRulesPath;
     if (config.externalRulesJsonPath) {
         const baseDir = configPath ? path.dirname(configPath) : process.cwd();
@@ -49,5 +49,6 @@ export function buildScanner({ config, configPath, defaultRulesPath, version }) 
         allowedDomains: config.allowedDomains,
         allowedValues: config.allowedValues,
         allowedPatterns: config.allowedPatterns,
+        ...(maxScanLength !== undefined ? { maxScanLength } : {}),
     });
 }

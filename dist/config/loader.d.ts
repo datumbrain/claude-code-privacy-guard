@@ -8,7 +8,9 @@ export declare class ConfigLoader {
     getConfig(): PrivacyGuardConfig;
     private loadConfig;
     /**
-     * Find config file in standard locations
+     * Find the config file: the nearest one walking up from startDir (the
+     * filesystem root included), else the global one in the home directory, so
+     * ~/.privacy-guard.json also covers projects that live outside $HOME.
      */
-    static findConfig(startDir?: string): string | null;
+    static findConfig(startDir?: string, homeDir?: string): string | null;
 }
