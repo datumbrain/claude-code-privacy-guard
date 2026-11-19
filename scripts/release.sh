@@ -1,136 +1,87 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-current_version="$(npm pkg get version | tr -d '"')"
+# Single-keypress prompts: no Enter needed. Anything but y/Y (Enter included)
+# is "no", so tapping through can never publish by accident.
+ask() {
+  local key
+  read -r -n 1 -s -p "$1 [y/N] " key || true
+  echo "${key}"
+  [[ "$key" == [Yy] ]]
+}
 
-echo "Current version: ${current_version}"
-echo "Choose version bump: patch | minor | major | custom"
-read -r -p "Bump type [patch]: " bump_type
-bump_type="${bump_type:-patch}"
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Working tree is not clean. Commit or stash first."
+  exit 1
+fi
 
-# Compute the next version WITHOUT writing any files. The previous script ran
-# `npm version` (which rewrites package.json) *before* the confirmation gate, so
-# a canceled release left the version bumped on disk and that number was then
-# consumed by the next run - that is exactly how v0.2.2 got skipped. Nothing on
-# disk is modified until after the confirmation below.
-#
-# Note: `npm version --dry-run` is NOT used here - in the npm shipped with this
-# toolchain it ignores --dry-run and mutates package.json anyway. We compute the
-# next semver ourselves instead.
-case "$bump_type" in
-  patch|minor|major)
-    new_version="$(node -e '
-      const [maj, min, pat] = process.argv[1].split(".").map(Number);
-      const bump = process.argv[2];
-      const next = bump === "major" ? `${maj + 1}.0.0`
-                 : bump === "minor" ? `${maj}.${min + 1}.0`
-                 : `${maj}.${min}.${pat + 1}`;
-      process.stdout.write(next);
-    ' "$current_version" "$bump_type")"
-    ;;
-  custom)
-    read -r -p "Enter version (e.g. 1.2.3): " new_version
-    new_version="${new_version#v}"
-    if [[ -z "${new_version}" ]]; then
-      echo "No version provided. Aborting."
-      exit 1
-    fi
-    ;;
-  *)
-    echo "Invalid bump type: ${bump_type}"
-    exit 1
-    ;;
+current="$(node -p 'require("./package.json").version')"
+IFS=. read -r maj min pat <<<"$current"
+
+echo "Current version: ${current}"
+echo "  1) patch  ${maj}.${min}.$((pat + 1))"
+echo "  2) minor  ${maj}.$((min + 1)).0"
+echo "  3) major  $((maj + 1)).0.0"
+read -r -n 1 -s -p "Bump: " choice || true
+case "$choice" in
+  1) version="${maj}.${min}.$((pat + 1))" ;;
+  2) version="${maj}.$((min + 1)).0" ;;
+  3) version="$((maj + 1)).0.0" ;;
+  *) echo; echo "Canceled."; exit 0 ;;
 esac
+echo "${version}"
 
-echo "Prepared release version: ${new_version}"
-read -r -p "Build, test, and create the release commit? [y/N]: " confirm_release
-if [[ ! "$confirm_release" =~ ^[Yy]$ ]]; then
-  echo "Release canceled. No files were modified."
+git fetch -q --tags
+if git rev-parse -q --verify "refs/tags/${version}" >/dev/null || git ls-remote --exit-code --tags origin "${version}" >/dev/null; then
+  echo "Tag ${version} already exists. Aborting."
+  exit 1
+fi
+
+# Nothing on disk changes before this confirmation.
+ask "Build, test and commit release ${version}?" || { echo "Canceled. No files were modified."; exit 0; }
+
+npm run build
+npm test -- --runInBand
+
+# Bump package.json and the plugin manifests together.
+npm version "$version" --no-git-tag-version --allow-same-version >/dev/null
+node -e '
+  const fs = require("fs");
+  const v = process.argv[1];
+  const write = (p, f) => { const j = JSON.parse(fs.readFileSync(p, "utf8")); f(j); fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n"); };
+  write(".claude-plugin/plugin.json", (j) => { j.version = v; });
+  write(".claude-plugin/marketplace.json", (j) => { for (const p of j.plugins) p.version = v; });
+' "$version"
+
+git add -A
+git commit -m "release: v${version}"
+
+if ! ask "Push and publish GitHub release ${version}?"; then
+  echo "Release commit created locally. To publish later:"
+  echo "  git push && gh release create ${version} --title ${version} --generate-notes --latest"
   exit 0
 fi
 
-echo "Running build..."
-npm run build
+# gh creates the tag and the Releases entry; notes come from merged PRs.
+git push
+gh release create "$version" --title "$version" --target "$(git rev-parse HEAD)" --generate-notes --latest
+echo "Published: https://github.com/datumbrain/claude-code-privacy-guard/releases/tag/${version}"
 
-echo "Running tests..."
-npm test -- --runInBand
-
-# Only now, after build+test pass and the user has confirmed, do we touch files.
-echo "Applying version ${new_version}..."
-npm version "$new_version" --no-git-tag-version --allow-same-version >/dev/null
-
-echo "Syncing .claude-plugin/plugin.json version..."
-node -e '
-  const fs = require("fs");
-  const path = ".claude-plugin/plugin.json";
-  const plugin = JSON.parse(fs.readFileSync(path, "utf8"));
-  plugin.version = process.argv[1];
-  fs.writeFileSync(path, JSON.stringify(plugin, null, 2) + "\n");
-' "$new_version"
-
-echo "Syncing .claude-plugin/marketplace.json version..."
-node -e '
-  const fs = require("fs");
-  const path = ".claude-plugin/marketplace.json";
-  const marketplace = JSON.parse(fs.readFileSync(path, "utf8"));
-  for (const plugin of marketplace.plugins) plugin.version = process.argv[1];
-  fs.writeFileSync(path, JSON.stringify(marketplace, null, 2) + "\n");
-' "$new_version"
-
-echo "Creating release commit..."
-git add -A
-git commit -m "release: v${new_version}"
-
-read -r -p "Push to origin and publish GitHub release v${new_version}? [y/N]: " confirm_publish
-if [[ "$confirm_publish" =~ ^[Yy]$ ]]; then
-  # gh release create makes the git tag on the remote AND the Releases page
-  # entry in one step, and --generate-notes builds the notes from the PRs merged
-  # since the previous release. This replaces the old `git tag` + `git push
-  # --tags` + hand-maintained CHANGELOG.md.
-  git push
-  gh release create "${new_version}" \
-    --title "${new_version}" \
-    --target "$(git rev-parse HEAD)" \
-    --generate-notes \
-    --latest
-  echo "Published: https://github.com/datumbrain/claude-code-privacy-guard/releases/tag/${new_version}"
-  published_release=1
-else
-  published_release=0
-  echo "Release commit created locally (not pushed). To publish later, run:"
-  echo "  git push && gh release create ${new_version} --title ${new_version} --generate-notes --latest"
-fi
-
-# npm publish is opt-in and defaults to No, so a plain "Enter" through the
-# prompts can never publish by accident (see 0f747a0). It is only offered once
-# the GitHub release exists, so a version on npm always has a matching tag, and
-# it always dry-runs first so the tarball contents are visible before the
-# irreversible step. npm versions cannot be republished or reused after unpublish.
-if [[ "$published_release" == "1" ]]; then
-  read -r -p "Also publish v${new_version} to npm? [y/N]: " confirm_npm
-  if [[ "$confirm_npm" =~ ^[Yy]$ ]]; then
-    if ! npm_user="$(npm whoami 2>/dev/null)"; then
-      echo "Not logged in to npm (run 'npm login'). Skipping npm publish. To publish later, run:"
-      echo "  npm publish"
-    else
-      echo "Logged in to npm as ${npm_user}. Dry run:"
-      npm publish --dry-run
-      read -r -p "Publish claude-code-privacy-guard@${new_version} to npm for real? [y/N]: " confirm_npm_final
-      if [[ "$confirm_npm_final" =~ ^[Yy]$ ]]; then
-        npm publish
-        echo "Published: https://www.npmjs.com/package/claude-code-privacy-guard/v/${new_version}"
-      else
-        echo "npm publish skipped. To publish later, run:"
-        echo "  npm publish"
-      fi
+# npm is opt-in, needs a login, and dry-runs before the irreversible publish
+# (npm versions can never be reused).
+if ask "Also publish to npm?"; then
+  if npm_user="$(npm whoami 2>/dev/null)"; then
+    echo "Logged in to npm as ${npm_user}. Dry run:"
+    npm publish --dry-run
+    if ask "Publish claude-code-privacy-guard@${version} to npm for real?"; then
+      npm publish
+      echo "Published: https://www.npmjs.com/package/claude-code-privacy-guard/v/${version}"
+      exit 0
     fi
   else
-    echo "Skipping npm publish. To publish later, run:"
-    echo "  npm publish"
+    echo "Not logged in to npm (run 'npm login')."
   fi
 fi
-
-echo "Release complete: v${new_version}"
+echo "npm publish skipped. To publish later: npm publish"
